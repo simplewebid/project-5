@@ -96,9 +96,21 @@
 
   // ===== Token =====
 
+  function normalizeTokenBase64(token) {
+    // FIXED: beberapa scanner/in-app browser bisa mengubah + menjadi spasi,
+    // atau mengubah token menjadi base64url (- dan _) tanpa padding.
+    let t = String(token ?? "").trim();
+    if (!t) return "";
+    t = t.replace(/\s+/g, "+"); // FIXED: spasi/newline → '+'
+    t = t.replace(/-/g, "+").replace(/_/g, "/"); // FIXED: base64url → base64
+    const mod = t.length % 4;
+    if (mod) t += "=".repeat(4 - mod); // FIXED: tambah padding
+    return t;
+  }
+
   function decodeToken(token) {
     try {
-      const raw = atob(token);
+      const raw = atob(normalizeTokenBase64(token)); // FIXED
       const parts = raw.split(":");
       if (parts.length < 4) return null;
       const [type, dateStr, wtStr, secret] = parts;

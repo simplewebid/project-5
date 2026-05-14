@@ -138,10 +138,14 @@
 
   // ===== Token =====
 
+  function toBase64Url(b64) {
+    return String(b64).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  }
+
   function generateToken(type, dateStr, secretKey) {
     const iat = unixSecNow();
     const nonce = randomNonce();
-    return btoa(`${type}:${dateStr}:${iat}:${secretKey}:${nonce}`);
+    return toBase64Url(btoa(`${type}:${dateStr}:${iat}:${secretKey}:${nonce}`));
   }
 
   async function getSecretHash(secretKey) {
