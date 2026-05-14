@@ -866,10 +866,30 @@
     if (!navigator.geolocation) { showToast("GPS tidak tersedia.", "error"); return; }
     showToast("Mengambil lokasi...");
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        $("s-lat").value = pos.coords.latitude.toFixed(6);
-        $("s-lng").value = pos.coords.longitude.toFixed(6);
-        showToast(`Lokasi diambil: ${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`);
+      async (pos) => {
+        const lat = Number(pos.coords.latitude);
+        const lng = Number(pos.coords.longitude);
+
+        // Isi form supaya user lihat angkanya
+        $("s-lat").value = lat.toFixed(6);
+        $("s-lng").value = lng.toFixed(6);
+
+        // FIXED: langsung simpan ke Supabase agar scan berikutnya memakai lokasi terbaru
+        try {
+          const s = await DB.getSettings();
+          if (s) {
+            s.sekre_lat = lat;
+            s.sekre_lng = lng;
+            await DB.saveSettings(s);
+            await updateSettingsUI();
+            showToast(`Lokasi sekretariat disimpan: ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+            return;
+          }
+        } catch {
+          // fallback ke pesan di bawah
+        }
+
+        showToast(`Lokasi diambil: ${lat.toFixed(5)}, ${lng.toFixed(5)} (gagal simpan otomatis, klik Simpan Pengaturan)`, "error");
       },
       (err) => {
         const msg = err.code === 1 ? "Izin lokasi ditolak. Aktifkan di pengaturan browser." :
