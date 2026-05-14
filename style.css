@@ -27,7 +27,10 @@ body {
   font-family: "Plus Jakarta Sans", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   color: var(--text);
   background: var(--bg);
+  overflow-x: hidden;
 }
+
+img { max-width: 100%; height: auto; }
 
 .container {
   max-width: 1100px;
@@ -530,18 +533,22 @@ input:focus, select:focus {
 /* Print */
 .print-area { display: none; }
 .print-card {
-  width: 360px;
+  width: 100%;
+  max-width: 360px;
   margin: 0 auto;
   padding: 1rem;
   text-align: center;
 }
 .print-qr {
-  width: 320px;
-  height: 320px;
+  width: 100%;
+  max-width: 320px;
+  aspect-ratio: 1 / 1;
   margin: 0.75rem auto;
   display: grid;
   place-items: center;
 }
+.print-qr canvas, .print-qr img { max-width: 100%; height: auto; }
+.qrbox__canvas canvas, .qrbox__canvas img { max-width: 100%; height: auto; }
 .print-title { margin: 0; }
 
 @media print {
@@ -558,9 +565,43 @@ input:focus, select:focus {
 }
 
 @media (max-width: 520px) {
+  .container { padding: 0 0.75rem; }
   .topbar__inner { flex-direction: column; align-items: flex-start; }
   .topbar__meta { text-align: left; }
   .radio { grid-template-columns: 1fr; }
+  input, select { font-size: 16px; }
+
+  .stepper { padding: 0.85rem; }
+  .stepper__head { flex-direction: column; align-items: flex-start; }
+
+  .step { grid-template-columns: 40px 1fr; transform: none; opacity: 1; }
+  .stepnum { width: 40px; height: 40px; border-radius: 12px; }
+  .spinner { width: 40px; height: 40px; }
+
+  .qr-meta { flex-direction: column; align-items: stretch; }
+  .qr-meta__time { font-size: 1.25rem; }
+
+  .panel-head { flex-direction: column; align-items: stretch; }
+  .panel-actions { width: 100%; }
+  .panel-actions .btn { width: 100%; }
+
+  .admin-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 0.25rem;
+  }
+  .admin-tab { flex: 0 0 auto; padding: 0.55rem 0.75rem; }
+
+  .stats { grid-template-columns: 1fr; }
+
+  .table th, .table td { padding: 0.6rem 0.55rem; }
+
+  .toast {
+    left: 12px;
+    right: 12px;
+    max-width: none;
+  }
 
   .brand__mark {
     width: 52px;
@@ -575,6 +616,12 @@ input:focus, select:focus {
     text-overflow: clip;
     word-break: break-all;
   }
+}
+
+@media (max-width: 360px) {
+  .brand__title { font-size: 1.0rem; }
+  .brand__subtitle { font-size: 0.85rem; }
+  .chip { height: 32px; padding: 0 0.65rem; }
 }
 
 /* Scrollbar */
