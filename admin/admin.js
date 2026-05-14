@@ -220,6 +220,81 @@
 
   // ===== UI Tabs =====
 
+  const QR_STORAGE_KEY = "sekre_qr_state_v1";
+
+  function saveQrStateToStorage(data) {
+    try { localStorage.setItem(QR_STORAGE_KEY, JSON.stringify(data)); } catch {}
+  }
+
+  function loadQrStateFromStorage() {
+    try {
+      const raw = localStorage.getItem(QR_STORAGE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return null;
+      if (!parsed.url || !parsed.token || !parsed.expiresAtSec) return null;
+      if (secondsUntil(parsed.expiresAtSec) <= 0) {
+        try { localStorage.removeItem(QR_STORAGE_KEY); } catch {}
+        return null;
+      }
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+
+  async function renderQrFromState(data, { silent = true } = {}) {
+    const loaded = await loadQRCodeLib();
+    if (!loaded || typeof QRCode === "undefined") {
+      if (!silent) showToast("Library QR tidak tersedia.", "error");
+      return false;
+    }
+
+    qrState.expiresAtSec = data.expiresAtSec;
+    qrState.url = data.url;
+    qrState.token = data.token;
+    qrState.type = data.type || "bebas";
+    qrState.dateStr = data.dateStr || (data.type === "piket" ? formatDateYYYYMMDD(new Date()) : formatDateYYYYMMDD(new Date()));
+
+    // Sinkronkan input UI biar konsisten
+    if ($("qr-date") && data.dateStr) $("qr-date").value = data.dateStr;
+    if ($("qr-type") && data.type) $("qr-type").value = data.type;
+    if ($("row-qr-piket")) $("row-qr-piket").style.display = $("qr-type").value === "piket" ? "block" : "none";
+
+    const labelType = qrState.type === "piket" ? "QR PIKET" : "QR HADIR BEBAS";
+
+    const container = $("qr-canvas");
+    container.innerHTML = "";
+    new QRCode(container, { text: qrState.url, width: 300, height: 300, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.M });
+
+    const print = $("print-qr");
+    print.innerHTML = "";
+    new QRCode(print, { text: qrState.url, width: 320, height: 320, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.M });
+
+    const validUntil = new Date(qrState.expiresAtSec * 1000);
+    const hhmm = `${pad2(validUntil.getHours())}:${pad2(validUntil.getMinutes())}`;
+    const remNow = secondsUntil(qrState.expiresAtSec);
+
+    $("qr-label").textContent = `${labelType} - ${$("qr-date").value} - Berlaku hingga ${hhmm}`;
+    $("qr-valid-until").textContent = hhmm;
+    $("qr-remaining").textContent = `${pad2(Math.floor(remNow / 60))}:${pad2(remNow % 60)}`;
+    $("qr-url").textContent = qrState.url;
+    $("qr-token").textContent = qrState.token;
+    $("print-title").textContent = labelType;
+    $("print-meta").textContent = `${$("qr-date").value} - Berlaku hingga ${hhmm}`;
+
+    return true;
+  }
+
+  async function ensureQrCurrent() {
+    const saved = loadQrStateFromStorage();
+    if (saved) {
+      const ok = await renderQrFromState(saved, { silent: true });
+      if (ok) return;
+    }
+    await renderQr();
+  }
+
   function switchAdminTab(name) {
     document.querySelectorAll(".admin-tab").forEach((b) => {
       b.classList.toggle("active", b.dataset.tab === name);
@@ -227,7 +302,7 @@
     document.querySelectorAll(".admin-panel").forEach((p) => {
       p.classList.toggle("active", p.id === `tab-${name}`);
     });
-    if (name === "qr") renderQr();
+    if (name === "qr") ensureQrCurrent();
   }
 
   // ===== QR Code library =====
@@ -247,7 +322,7 @@
 
   // ===== QR State =====
 
-  const qrState = { expiresAtSec: null, timer: null };
+  const qrState = { expiresAtSec: null, timer: null, url: null, token: null, type: null, dateStr: null };
 
   async function renderQr() {
     try {
@@ -277,6 +352,9 @@
       const token = generateToken(type, dateStr, settings.secret_key);
       const expiresAtSec = unixSecNow() + 300;
       qrState.expiresAtSec = expiresAtSec;
+      qrState.token = token;
+      qrState.type = type;
+      qrState.dateStr = dateStr;
 
       // FIXED: Pendekkan payload QR agar mudah discan (banyak scanner suka "memotong" URL panjang)
       // Koordinat/radius diambil dari Supabase settings pada halaman anggota (fallback sudah ada di script.js).
@@ -285,6 +363,15 @@
 
       // FIXED: fallback jika scanner/in-app browser membuang query (?)
       url.hash = new URLSearchParams({ t: token }).toString();
+
+      qrState.url = url.toString();
+      saveQrStateToStorage({
+        url: qrState.url,
+        token: qrState.token,
+        expiresAtSec: qrState.expiresAtSec,
+        type: qrState.type,
+        dateStr: qrState.dateStr,
+      });
 
       const labelType = type === "piket" ? "QR PIKET" : "QR HADIR BEBAS";
 
@@ -1133,7 +1220,7 @@
     ]);
 
     $("row-qr-piket").style.display = $("qr-type").value === "piket" ? "block" : "none";
-    await renderQr();
+    await ensureQrCurrent();
     startQrAutoRefresh();
 
     await renderDashboard();
