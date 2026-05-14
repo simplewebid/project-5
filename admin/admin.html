@@ -5,17 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Admin ABSENSI HMTE FT UNP</title>
   <meta name="description" content="Dashboard admin ABSENSI HMTE FT UNP (QR dinamis, jadwal, rekap, pengaturan)." />
+  <link rel="icon" href="data:," /><!-- // FIXED: cegah request /favicon.ico (hindari 404 di console) -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="/style.css?v=20260514" /><!-- // FIXED: cache-busting agar tidak pakai file lama -->
 </head>
 <body class="page-admin">
   <header class="topbar">
     <div class="container topbar__inner">
       <div class="brand">
         <div class="brand__mark">
-          <img src="LOGO%20HMTE.png" alt="Logo HMTE" loading="eager" />
+          <img src="/LOGO%20HMTE.png?v=20260514" alt="Logo HMTE" loading="eager" /><!-- // FIXED: cache-busting agar tidak pakai file lama -->
         </div>
         <div class="brand__text">
           <h1 class="brand__title" id="admin-org-name">ABSENSI HMTE FT UNP</h1>
@@ -514,7 +515,7 @@
   <!-- QR Code dari CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <!-- DB layer -->
-  <script src="db.js?v=20260514"></script><!-- // FIXED: path absolut-aman (local & deploy) -->
+  <script src="/db.js?v=20260514"></script><!-- // FIXED: pakai path absolut agar aman di Vercel -->
   <script src="admin.js?v=20260514"></script>
 </body>
 </html> 

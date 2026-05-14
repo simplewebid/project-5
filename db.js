@@ -348,4 +348,7 @@
     importAllData,
     wipeAllData,
   };
+
+  window.__SEKRE_DB_READY__ = true; // FIXED: sinyal siap untuk halaman admin/anggota
+  try { window.dispatchEvent(new CustomEvent("sekre:db-ready")); } catch { /* ignore */ } // FIXED
 })();

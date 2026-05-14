@@ -288,6 +288,9 @@
       url.searchParams.set("o", sekreLng.toFixed(5)); // FIXED
       url.searchParams.set("r", String(radius)); // FIXED
 
+      // FIXED: fallback jika scanner/in-app browser membuang query (?)
+      url.hash = new URLSearchParams({ t: token, a: sekreLat.toFixed(5), o: sekreLng.toFixed(5), r: String(radius) }).toString(); // FIXED
+
       const labelType = type === "piket" ? "QR PIKET" : "QR HADIR BEBAS";
 
       const container = $("qr-canvas");
@@ -1013,14 +1016,66 @@
 
   // ===== Init =====
 
+  let __didInit = false; // FIXED: cegah init dobel
+
+  function isDBReady() {
+    return !!(window.DB && typeof window.DB.getSettings === "function" && window.__SEKRE_DB_READY__); // FIXED
+  }
+
+  function isSupabaseReady() {
+    return !!(window.supabase && typeof window.supabase.createClient === "function"); // FIXED
+  }
+
+  async function waitForPrereqs(timeoutMs = 8000) {
+    if (isDBReady() && isSupabaseReady()) return true; // FIXED
+
+    return await new Promise((resolve) => {
+      let done = false; // FIXED
+      const finish = (ok) => {
+        if (done) return;
+        done = true;
+        try { window.removeEventListener("sekre:db-ready", onReady); } catch { /* ignore */ }
+        resolve(ok);
+      };
+
+      const onReady = () => {
+        if (isDBReady() && isSupabaseReady()) finish(true); // FIXED
+      };
+
+      try { window.addEventListener("sekre:db-ready", onReady, { once: false }); } catch { /* ignore */ } // FIXED
+
+      const started = Date.now(); // FIXED
+      const timer = window.setInterval(() => {
+        if (isDBReady() && isSupabaseReady()) {
+          window.clearInterval(timer);
+          finish(true);
+          return;
+        }
+        if (Date.now() - started >= timeoutMs) {
+          window.clearInterval(timer);
+          finish(false);
+        }
+      }, 50);
+    });
+  }
+
   async function init() {
-    // Pastikan DB tersedia
-    if (!window.DB) {
+    if (__didInit) return; // FIXED
+    __didInit = true; // FIXED
+
+    // FIXED: tunggu Supabase CDN + db.js benar-benar siap (hindari race condition / cache)
+    const okPrereq = await waitForPrereqs(8000); // FIXED
+    if (!okPrereq) {
+      const last = window.__SB_LAST_ERROR;
+      const hint401 = last?.status === 401 ? "\n\nCatatan: 401 dari Supabase biasanya karena domain Vercel belum di-allow (Settings → API → Allowed Origins/URLs) atau key tidak sesuai." : "";
       document.body.innerHTML = `<div style="padding:2rem;font-family:sans-serif;color:red">
-        <h2>Error: db.js tidak dimuat</h2>
-        <p>Pastikan tag &lt;script src="db.js"&gt; ada di admin.html sebelum admin.js.</p> // FIXED
-      </div>`;
-      return;
+        <h2>Error: db.js tidak siap</h2>
+        <p>Pastikan file <code>/db.js</code> bisa di-load dari <code>/admin/admin.html</code> (Network tab: status 200).</p>
+        <p>Jika <code>/db.js</code> atau <code>/style.css</code> statusnya 404 di Vercel, berarti setelan Vercel salah: Root Directory harus mengarah ke folder yang berisi <code>index.html</code>, <code>db.js</code>, <code>style.css</code>, dan folder <code>admin/</code>.</p> <!-- // FIXED -->
+        <p>Jika status 200 tapi tetap gagal, kemungkinan ada error parse di db.js di browser ini.</p>
+        <p style="white-space:pre-wrap">Debug: lastError=${last ? JSON.stringify(last) : "(none)"}${hint401}</p>
+      </div>`; // FIXED
+      return; // FIXED
     }
 
     // Clock
@@ -1094,5 +1149,9 @@
     await Promise.all([renderRekapHarian(), renderRekapMingguan(), renderRekapBulanan()]);
   }
 
-  document.addEventListener("DOMContentLoaded", init);
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init); // FIXED
+  } else {
+    init(); // FIXED
+  }
 })();

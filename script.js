@@ -120,10 +120,21 @@
 
   async function validateTokenFromUrl() {
     const params = new URLSearchParams(window.location.search);
-    const token = params.get("t") || params.get("token");
-    const lat = params.get("a") || params.get("lat");
-    const lng = params.get("o") || params.get("lng");
-    const r = params.get("r");
+    let token = params.get("t") || params.get("token"); // FIXED: pakai let agar bisa fallback dari hash
+    let lat = params.get("a") || params.get("lat"); // FIXED: pakai let agar bisa fallback dari hash
+    let lng = params.get("o") || params.get("lng"); // FIXED: pakai let agar bisa fallback dari hash
+    let r = params.get("r"); // FIXED: pakai let agar bisa fallback dari hash
+
+    // FIXED: beberapa scanner/WA kadang memindahkan query ke fragment (#...)
+    if (!token && window.location.hash) { // FIXED
+      const rawHash = String(window.location.hash || "").replace(/^#/, ""); // FIXED
+      const hashQuery = rawHash.includes("?") ? rawHash.split("?").slice(1).join("?") : rawHash; // FIXED
+      const hParams = new URLSearchParams(hashQuery.replace(/^\?/, "")); // FIXED
+      token = hParams.get("t") || hParams.get("token") || token; // FIXED
+      lat = hParams.get("a") || hParams.get("lat") || lat; // FIXED
+      lng = hParams.get("o") || hParams.get("lng") || lng; // FIXED
+      r = hParams.get("r") || r; // FIXED
+    }
 
     state.token = token;
     state.sekre.lat = toNumberOrNull(lat);
