@@ -221,6 +221,64 @@
     });
   }
 
+  function getBestGpsPosition(timeoutMs = 20000, desiredAccuracy = 100) {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error("GPS tidak tersedia di perangkat ini."));
+        return;
+      }
+
+      let bestPos = null;
+      let bestAcc = Number.POSITIVE_INFINITY;
+      let done = false;
+
+      const finish = (pos, err) => {
+        if (done) return;
+        done = true;
+        if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+        if (pos) resolve(pos);
+        else reject(err || new Error("Gagal mendapatkan lokasi."));
+      };
+
+      const onPos = (pos) => {
+        const acc = Number(pos?.coords?.accuracy);
+        if (Number.isFinite(acc) && acc < bestAcc) {
+          bestAcc = acc;
+          bestPos = pos;
+        }
+        if (Number.isFinite(acc) && acc <= desiredAccuracy) {
+          finish(pos);
+        }
+      };
+
+      const onErr = (err) => {
+        // Kalau belum ada posisi sama sekali, simpan error untuk fallback
+        lastErr = err;
+      };
+
+      let lastErr = null;
+      let watchId = null;
+
+      // Mulai watch supaya akurasi bisa membaik
+      watchId = navigator.geolocation.watchPosition(onPos, onErr, {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+      });
+
+      // Fallback: juga request satu kali (kadang lebih cepat di beberapa device)
+      navigator.geolocation.getCurrentPosition(onPos, onErr, {
+        enableHighAccuracy: true,
+        timeout: timeoutMs,
+        maximumAge: 0,
+      });
+
+      window.setTimeout(() => {
+        if (bestPos) finish(bestPos);
+        else finish(null, lastErr || Object.assign(new Error("Timeout GPS."), { code: 3 }));
+      }, timeoutMs);
+    });
+  }
+
   async function cekLokasi() {
     try {
       if (!window.isSecureContext && location.hostname !== "localhost") {
@@ -232,7 +290,9 @@
       }
 
       $("gps-status").textContent = "Meminta akses lokasi GPS...";
-      const pos = await getGpsPosition(20000);
+      const desiredAccuracy = Math.max(150, state.sekre.radius);
+      $("gps-status").textContent = "Mengunci lokasi (tunggu beberapa detik untuk akurasi terbaik)...";
+      const pos = await getBestGpsPosition(20000, desiredAccuracy);
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
       const accuracy = pos.coords.accuracy;
@@ -252,7 +312,7 @@
       if (Number.isFinite(accuracy) && accuracy > Math.max(150, state.sekre.radius)) {
         return {
           ok: false,
-          error: `Akurasi GPS terlalu rendah (${Math.round(accuracy)} m). Nyalakan mode akurasi tinggi di pengaturan HP, lalu coba lagi.`,
+          error: `Akurasi GPS terlalu rendah (${Math.round(accuracy)} m). Aktifkan "Lokasi Akurat"/"High accuracy", nyalakan Wi‑Fi, dan coba di tempat lebih terbuka.`,
         };
       }
 

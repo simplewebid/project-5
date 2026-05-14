@@ -278,22 +278,13 @@
       const expiresAtSec = unixSecNow() + 300;
       qrState.expiresAtSec = expiresAtSec;
 
-      const sekreLat = Number.parseFloat(String(settings.sekre_lat ?? "").replace(",", ".")); // FIXED: dukung koma desimal
-      const sekreLng = Number.parseFloat(String(settings.sekre_lng ?? "").replace(",", ".")); // FIXED: dukung koma desimal
-      const radius = Number.parseFloat(String(settings.radius_meter ?? "").replace(",", ".")) || 100; // FIXED
-      if (!Number.isFinite(sekreLat) || !Number.isFinite(sekreLng)) {
-        showToast("Koordinat sekretariat tidak valid. Isi lat/lng (pakai titik) di Pengaturan.", "error"); // FIXED
-        return; // FIXED
-      }
-
-      const url = new URL(window.location.origin + "/index.html"); // FIXED: jangan pakai ../index.html (rawan salah path)
+      // FIXED: Pendekkan payload QR agar mudah discan (banyak scanner suka "memotong" URL panjang)
+      // Koordinat/radius diambil dari Supabase settings pada halaman anggota (fallback sudah ada di script.js).
+      const url = new URL(window.location.origin + "/"); // FIXED: cukup root, tidak perlu /index.html
       url.searchParams.set("t", token);
-      url.searchParams.set("a", sekreLat.toFixed(5)); // FIXED
-      url.searchParams.set("o", sekreLng.toFixed(5)); // FIXED
-      url.searchParams.set("r", String(radius)); // FIXED
 
       // FIXED: fallback jika scanner/in-app browser membuang query (?)
-      url.hash = new URLSearchParams({ t: token, a: sekreLat.toFixed(5), o: sekreLng.toFixed(5), r: String(radius) }).toString(); // FIXED
+      url.hash = new URLSearchParams({ t: token }).toString();
 
       const labelType = type === "piket" ? "QR PIKET" : "QR HADIR BEBAS";
 
