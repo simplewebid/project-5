@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ABSENSI HMTE FT UNP</title>
+  <meta name="description" content="ABSENSI HMTE FT UNP berbasis QR dinamis dan validasi GPS (tanpa backend)." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="page-anggota">
+  <header class="topbar">
+    <div class="container topbar__inner">
+      <div class="brand">
+        <div class="brand__mark">
+          <img src="LOGO%20HMTE.png" alt="Logo HMTE" loading="eager" />
+        </div>
+        <div class="brand__text">
+          <h1 class="brand__title" id="org-name">ABSENSI HMTE FT UNP</h1>
+          <p class="brand__subtitle">Absensi QR dinamis dan validasi lokasi</p>
+        </div>
+      </div>
+      <div class="topbar__meta">
+        <div class="mono meta__time" id="now-time">00:00:00</div>
+        <div class="meta__date" id="now-date">Senin, 13 Mei 2026</div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="card stepper" aria-live="polite">
+      <div class="stepper__head">
+        <div class="stepper__title">
+          <h2 id="step-title">Memulai</h2>
+          <p id="step-desc" class="muted">Sedang memproses tautan QR.</p>
+        </div>
+        <div class="chip mono" id="chip-type">TYPE</div>
+      </div>
+
+      <div class="stepper__body">
+        <!-- STEP 1: VALIDASI TOKEN -->
+        <div class="step step--active" id="step-1">
+          <div class="step__icon">
+            <div class="spinner" aria-label="Memuat"></div>
+          </div>
+          <div class="step__content">
+            <h3>Validasi QR</h3>
+            <p class="muted">Memeriksa apakah QR masih berlaku.</p>
+            <div class="alert alert--danger" id="token-error" style="display:none">
+              <strong id="token-error-title">QR bermasalah</strong>
+              <p id="token-error-msg" class="alert__msg">QR tidak valid.</p>
+              <div class="countdown" id="token-countdown" style="display:none">
+                <div class="countdown__label">QR berikutnya tersedia dalam</div>
+                <div class="countdown__value mono" id="countdown-token">00:00</div>
+              </div>
+            </div>
+
+            <div class="actions-row" id="token-actions" style="display:none">
+              <a class="btn btn--secondary" href="admin/">Buka Halaman Admin</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 2: GPS -->
+        <div class="step" id="step-2">
+          <div class="step__icon">
+            <div class="spinner" aria-label="Memuat"></div>
+          </div>
+          <div class="step__content">
+            <h3>Cek Lokasi</h3>
+            <p class="muted" id="gps-status">Memeriksa lokasi kamu.</p>
+            <div class="alert alert--warning" id="gps-error" style="display:none">
+              <strong id="gps-error-title">Lokasi tidak memenuhi syarat</strong>
+              <p id="gps-error-msg" class="alert__msg">Absensi hanya bisa dilakukan di lokasi sekretariat.</p>
+            </div>
+            <div class="kv" id="gps-info" style="display:none">
+              <div class="kv__row"><span class="muted">Jarak</span><span class="mono" id="gps-distance">-</span></div>
+              <div class="kv__row"><span class="muted">Radius</span><span class="mono" id="gps-radius">-</span></div>
+              <div class="kv__row"><span class="muted">Akurasi</span><span class="mono" id="gps-accuracy">-</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 3: FORM -->
+        <div class="step" id="step-3">
+          <div class="step__icon">
+            <div class="stepnum mono">3</div>
+          </div>
+          <div class="step__content">
+            <h3>Form Absensi</h3>
+            <p class="muted">Isi nama dan pastikan pilihan sesuai.</p>
+
+            <form id="form-absen" class="form">
+              <div class="form__row">
+                <label class="label" for="select-anggota">Pilih Nama</label>
+                <select id="select-anggota" required></select>
+                <p class="hint">Jika namamu tidak ada, pilih "Lainnya" lalu isi nama manual.</p>
+              </div>
+
+              <div class="form__row" id="row-nama-manual" style="display:none">
+                <label class="label" for="input-nama">Nama (Manual)</label>
+                <input id="input-nama" type="text" autocomplete="name" placeholder="Nama lengkap" />
+              </div>
+
+              <div class="form__row">
+                <span class="label">Tipe Absensi</span>
+                <div class="radio">
+                  <label class="radio__item">
+                    <input type="radio" name="tipe" value="piket" />
+                    <span>Piket</span>
+                  </label>
+                  <label class="radio__item">
+                    <input type="radio" name="tipe" value="bebas" />
+                    <span>Hadir Bebas</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="qr-meta">
+                <div class="qr-meta__left">
+                  <div class="muted">Sisa waktu QR</div>
+                  <div class="mono qr-meta__time" id="qr-countdown">00:00</div>
+                </div>
+                <div class="qr-meta__right">
+                  <div class="muted">Tanggal</div>
+                  <div class="mono" id="absen-date">YYYY-MM-DD</div>
+                </div>
+              </div>
+
+              <button class="btn btn--primary btn--block" type="submit" id="btn-absen">ABSEN SEKARANG</button>
+
+              <div class="alert alert--info" id="hint-broadcast" style="display:none">
+                <strong>Catatan</strong>
+                <p class="alert__msg">
+                  Data akan dikirim lewat BroadcastChannel bila admin membuka dashboard pada perangkat yang sama.
+                  Jika berbeda perangkat, data tetap tersimpan di ponsel ini.
+                </p>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- STEP 4: HASIL -->
+        <div class="step" id="step-4">
+          <div class="step__icon">
+            <div class="stepnum mono">4</div>
+          </div>
+          <div class="step__content">
+            <h3>Hasil</h3>
+            <p class="muted" id="result-sub">-</p>
+            <div class="result" id="result-panel">
+              <div class="result__title" id="result-title">Berhasil</div>
+              <div class="result__meta">
+                <div class="mono" id="result-name">Nama</div>
+                <div class="mono" id="result-type">Tipe</div>
+                <div class="mono" id="result-time">Waktu</div>
+              </div>
+              <div class="result__note" id="result-note">-</div>
+            </div>
+            <div class="actions-row">
+              <a class="btn btn--secondary" href="index.html" id="btn-back">Kembali</a>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  </main>
+
+  <!-- Supabase JS SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <!-- DB layer (Supabase) -->
+  <script src="db.js?v=20260514"></script>
+  <script src="script.js?v=20260514"></script>
+</body>
+</html>

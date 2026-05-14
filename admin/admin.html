@@ -1,0 +1,520 @@
+<!doctype html><!-- // FIXED: hapus karakter '\\' yang bikin doctype invalid -->
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin ABSENSI HMTE FT UNP</title>
+  <meta name="description" content="Dashboard admin ABSENSI HMTE FT UNP (QR dinamis, jadwal, rekap, pengaturan)." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="page-admin">
+  <header class="topbar">
+    <div class="container topbar__inner">
+      <div class="brand">
+        <div class="brand__mark">
+          <img src="LOGO%20HMTE.png" alt="Logo HMTE" loading="eager" />
+        </div>
+        <div class="brand__text">
+          <h1 class="brand__title" id="admin-org-name">ABSENSI HMTE FT UNP</h1>
+          <p class="brand__subtitle">Dashboard Admin Absensi</p>
+        </div>
+      </div>
+      <div class="topbar__meta">
+        <div class="mono meta__time" id="admin-now-time">00:00:00</div>
+        <div class="meta__date" id="admin-now-date">Senin, 13 Mei 2026</div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container admin-layout">
+    <!-- LOGIN -->
+    <section class="card" id="panel-login" style="display:none">
+      <h2>Login Admin</h2>
+      <p class="muted">Masukkan password untuk masuk dashboard.</p>
+      <form class="form" id="form-login">
+        <div class="form__row">
+          <label class="label" for="input-password">Password</label>
+          <input id="input-password" type="password" autocomplete="current-password" required />
+        </div>
+        <button class="btn btn--primary btn--block" type="submit">MASUK</button>
+        <p class="muted small">Password default: admin123 (ubah di Pengaturan).</p>
+      </form>
+
+      <div class="hr"></div>
+      <button class="btn btn--secondary btn--block" id="btn-reset-password" type="button">Reset Password ke admin123</button>
+      <p class="muted small">Gunakan jika lupa password atau data lama bermasalah.</p>
+    </section>
+
+    <!-- DASHBOARD -->
+    <section id="panel-dashboard" style="display:none">
+      <nav class="admin-tabs" aria-label="Navigasi admin">
+        <button class="admin-tab active" data-tab="dash">Dashboard</button>
+        <button class="admin-tab" data-tab="qr">Generate QR</button>
+        <button class="admin-tab" data-tab="jadwal">Jadwal Piket</button>
+        <button class="admin-tab" data-tab="anggota">Anggota</button>
+        <button class="admin-tab" data-tab="rekap">Rekap</button>
+        <button class="admin-tab" data-tab="settings">Pengaturan</button>
+        <div class="admin-tabs__spacer"></div>
+        <button class="btn btn--ghost" id="btn-logout" type="button">Keluar</button>
+      </nav>
+
+      <div class="admin-panels">
+        <!-- TAB 1: DASHBOARD -->
+        <section class="admin-panel active" id="tab-dash">
+          <div class="panel-head">
+            <div>
+              <h2>Hari Ini</h2>
+              <p class="muted" id="dash-date">-</p>
+            </div>
+            <div class="panel-actions">
+              <button class="btn btn--secondary" id="btn-dash-export" type="button">Ekspor CSV Hari Ini</button>
+              <button class="btn btn--secondary" id="btn-dash-refresh" type="button">Refresh</button>
+            </div>
+          </div>
+
+          <div class="stats">
+            <div class="stat">
+              <div class="stat__label">Total piket dijadwal</div>
+              <div class="stat__value mono" id="stat-jadwal">0</div>
+            </div>
+            <div class="stat">
+              <div class="stat__label">Sudah absen piket</div>
+              <div class="stat__value mono" id="stat-piket">0</div>
+            </div>
+            <div class="stat">
+              <div class="stat__label">Hadir bebas</div>
+              <div class="stat__value mono" id="stat-bebas">0</div>
+            </div>
+            <div class="stat">
+              <div class="stat__label">Belum absen</div>
+              <div class="stat__value mono" id="stat-belum">0</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="table-head">
+              <h3>Status Anggota</h3>
+              <div class="search">
+                <input id="dash-search" type="text" placeholder="Cari nama atau divisi" />
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="table" id="table-dash">
+                <thead>
+                  <tr>
+                    <th>No</th>
+                    <th>Nama</th>
+                    <th>NIM</th>
+                    <th>Divisi</th>
+                    <th>Status</th>
+                    <th>Waktu</th>
+                    <th>Jarak</th>
+                  </tr>
+                </thead>
+                <tbody id="tbody-dash"></tbody>
+              </table>
+            </div>
+            <div class="empty" id="dash-empty" style="display:none">
+              <p class="muted">Belum ada data untuk hari ini.</p>
+            </div>
+            <p class="muted small">Auto-refresh setiap 10 detik saat dashboard terbuka.</p>
+          </div>
+        </section>
+
+        <!-- TAB 2: GENERATE QR -->
+        <section class="admin-panel" id="tab-qr">
+          <div class="panel-head">
+            <div>
+              <h2>Generate QR</h2>
+              <p class="muted">QR token berubah setiap 5 menit.</p>
+            </div>
+            <div class="panel-actions">
+              <button class="btn btn--secondary" id="btn-qr-refresh" type="button">Refresh QR Sekarang</button>
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <div class="card">
+              <form class="form" id="form-qr">
+                <div class="form__row">
+                  <label class="label" for="qr-date">Tanggal</label>
+                  <input id="qr-date" type="date" required />
+                </div>
+
+                <div class="form__row">
+                  <label class="label" for="qr-type">Tipe</label>
+                  <select id="qr-type">
+                    <option value="piket">Piket</option>
+                    <option value="bebas">Hadir Bebas</option>
+                  </select>
+                </div>
+
+                <div class="form__row" id="row-qr-piket" style="display:none">
+                  <label class="label">Pilih anggota piket (multi-select)</label>
+                  <div class="search" style="margin-bottom: 0.75rem">
+                    <input id="piket-filter" type="text" placeholder="Cari anggota" />
+                  </div>
+                  <div class="checklist" id="piket-checklist"></div>
+                  <p class="muted small">Pilihan ini akan tersimpan sebagai jadwal piket untuk tanggal tersebut.</p>
+                </div>
+
+                <button class="btn btn--primary btn--block" type="submit">GENERATE QR HARI INI</button>
+
+                <div class="alert alert--info" style="margin-top:1rem">
+                  <strong>Instruksi</strong>
+                  <p class="alert__msg">Screenshot QR ini dan kirim ke grup WhatsApp.</p>
+                </div>
+              </form>
+            </div>
+
+            <div class="card">
+              <div class="qrbox">
+                <div class="qrbox__canvas" id="qr-canvas"></div>
+                <div class="qrbox__label" id="qr-label">QR - -</div>
+                <div class="qrbox__meta">
+                  <div>
+                    <div class="muted small">Berlaku hingga</div>
+                    <div class="mono" id="qr-valid-until">-</div>
+                  </div>
+                  <div>
+                    <div class="muted small">Sisa waktu</div>
+                    <div class="mono" id="qr-remaining">00:00</div>
+                  </div>
+                </div>
+                <div class="kv" style="margin-top:1rem">
+                  <div class="kv__row"><span class="muted">URL</span><span class="mono kv__val" id="qr-url">-</span></div>
+                  <div class="kv__row"><span class="muted">Token</span><span class="mono kv__val" id="qr-token">-</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="print-area" class="print-area">
+            <div class="print-card">
+              <h2 class="print-title" id="print-title">QR</h2>
+              <div id="print-qr" class="print-qr"></div>
+              <div class="mono" id="print-meta">-</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- TAB 3: JADWAL PIKET -->
+        <section class="admin-panel" id="tab-jadwal">
+          <div class="panel-head">
+            <div>
+              <h2>Jadwal Piket</h2>
+              <p class="muted">Atur piket per tanggal, impor/ekspor CSV.</p>
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <div class="card">
+              <h3>Kelola Jadwal Harian</h3>
+              <form class="form" id="form-jadwal">
+                <div class="form__row">
+                  <label class="label" for="jadwal-date">Tanggal</label>
+                  <input id="jadwal-date" type="date" required />
+                </div>
+                <div class="form__row">
+                  <label class="label">Pilih anggota piket</label>
+                  <div class="search" style="margin-bottom: 0.75rem">
+                    <input id="jadwal-filter" type="text" placeholder="Cari anggota" />
+                  </div>
+                  <div class="checklist" id="jadwal-checklist"></div>
+                </div>
+                <button class="btn btn--primary btn--block" type="submit">SIMPAN JADWAL</button>
+              </form>
+            </div>
+
+            <div class="card">
+              <h3>Kalender Mingguan</h3>
+              <div class="weekbar">
+                <button class="btn btn--secondary" id="btn-week-prev" type="button">Minggu Lalu</button>
+                <div class="mono" id="week-range">-</div>
+                <button class="btn btn--secondary" id="btn-week-next" type="button">Minggu Depan</button>
+              </div>
+              <div class="table-wrap" style="margin-top:1rem">
+                <table class="table" id="table-week">
+                  <thead>
+                    <tr>
+                      <th>Tanggal</th>
+                      <th>Jumlah</th>
+                      <th>Nama</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tbody-week"></tbody>
+                </table>
+              </div>
+
+              <div class="hr"></div>
+
+              <h3>Impor / Ekspor</h3>
+              <div class="stack">
+                <button class="btn btn--secondary" id="btn-jadwal-export" type="button">Ekspor Jadwal Bulanan (CSV)</button>
+                <div class="row">
+                  <button class="btn btn--secondary" id="btn-jadwal-import" type="button">Impor Jadwal (CSV)</button>
+                  <input id="file-jadwal" type="file" accept=".csv" style="display:none" />
+                </div>
+                <p class="muted small">Format CSV: tanggal,nama1,nama2,...</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- TAB 4: ANGGOTA -->
+        <section class="admin-panel" id="tab-anggota">
+          <div class="panel-head">
+            <div>
+              <h2>Anggota</h2>
+              <p class="muted">Tambah, impor massal, filter, ekspor.</p>
+            </div>
+            <div class="panel-actions">
+              <button class="btn btn--secondary" id="btn-anggota-export" type="button">Ekspor Anggota (CSV)</button>
+              <button class="btn btn--secondary" id="btn-anggota-import" type="button">Impor Anggota (CSV)</button>
+              <input id="file-anggota" type="file" accept=".csv" style="display:none" />
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <div class="card">
+              <h3>Tambah Anggota</h3>
+              <form class="form" id="form-anggota">
+                <div class="form__row">
+                  <label class="label" for="a-nama">Nama</label>
+                  <input id="a-nama" type="text" required />
+                </div>
+                <div class="form__row">
+                  <label class="label" for="a-nim">NIM</label>
+                  <input id="a-nim" type="text" required />
+                </div>
+                <div class="form__row">
+                  <label class="label" for="a-divisi">Divisi</label>
+                  <input id="a-divisi" type="text" required />
+                </div>
+                <div class="form__row">
+                  <label class="label" for="a-nohp">No HP</label>
+                  <input id="a-nohp" type="text" required />
+                </div>
+                <button class="btn btn--primary btn--block" type="submit">TAMBAH</button>
+              </form>
+            </div>
+
+            <div class="card">
+              <div class="table-head">
+                <h3>Daftar Anggota</h3>
+                <div class="search">
+                  <input id="anggota-search" type="text" placeholder="Cari nama, nim, divisi" />
+                </div>
+              </div>
+              <div class="table-wrap">
+                <table class="table" id="table-anggota">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Nama</th>
+                      <th>NIM</th>
+                      <th>Divisi</th>
+                      <th>No HP</th>
+                      <th>Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tbody-anggota"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- TAB 5: REKAP -->
+        <section class="admin-panel" id="tab-rekap">
+          <div class="panel-head">
+            <div>
+              <h2>Rekap</h2>
+              <p class="muted">Filter harian, mingguan, bulanan.</p>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="segmented" role="tablist" aria-label="Filter rekap">
+              <button class="segmented__btn active" data-mode="harian" type="button">Harian</button>
+              <button class="segmented__btn" data-mode="mingguan" type="button">Mingguan</button>
+              <button class="segmented__btn" data-mode="bulanan" type="button">Bulanan</button>
+            </div>
+
+            <div class="rekap" id="rekap-harian">
+              <div class="row row--gap">
+                <div>
+                  <label class="label" for="r-date">Tanggal</label>
+                  <input id="r-date" type="date" />
+                </div>
+                <button class="btn btn--secondary" id="btn-r-export" type="button">Ekspor CSV</button>
+              </div>
+              <div class="table-wrap" style="margin-top:1rem">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>No</th>
+                      <th>Nama</th>
+                      <th>Tipe</th>
+                      <th>Waktu</th>
+                      <th>Jarak</th>
+                      <th>Terlambat</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tbody-r-harian"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="rekap" id="rekap-mingguan" style="display:none">
+              <div class="row row--gap">
+                <div>
+                  <label class="label" for="r-week">Minggu</label>
+                  <input id="r-week" type="week" />
+                </div>
+                <button class="btn btn--secondary" id="btn-r-week-export" type="button">Ekspor CSV</button>
+              </div>
+              <div class="table-wrap" style="margin-top:1rem">
+                <table class="table" id="table-r-week">
+                  <thead id="thead-r-week"></thead>
+                  <tbody id="tbody-r-week"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="rekap" id="rekap-bulanan" style="display:none">
+              <div class="row row--gap">
+                <div>
+                  <label class="label" for="r-month">Bulan</label>
+                  <input id="r-month" type="month" />
+                </div>
+                <button class="btn btn--secondary" id="btn-r-month-export" type="button">Ekspor CSV</button>
+              </div>
+              <div class="table-wrap" style="margin-top:1rem">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Nama</th>
+                      <th>Divisi</th>
+                      <th>Total Hadir</th>
+                      <th>Total Hari</th>
+                      <th>Persentase</th>
+                      <th>Grafik</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tbody-r-month"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- TAB 6: PENGATURAN -->
+        <section class="admin-panel" id="tab-settings">
+          <div class="panel-head">
+            <div>
+              <h2>Pengaturan</h2>
+              <p class="muted">Konfigurasi organisasi, koordinat, keamanan, data.</p>
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <div class="card">
+              <h3>Organisasi dan Lokasi</h3>
+              <form class="form" id="form-settings">
+                <div class="form__row">
+                  <label class="label" for="s-org">Nama organisasi</label>
+                  <input id="s-org" type="text" />
+                </div>
+
+                <div class="form__row">
+                  <label class="label" for="s-lat">Latitude sekretariat</label>
+                  <input id="s-lat" type="text" inputmode="decimal" placeholder="-0.920781" />
+                  <p class="hint">Gunakan titik, contoh: -0.920781</p>
+                </div>
+
+                <div class="form__row">
+                  <label class="label" for="s-lng">Longitude sekretariat</label>
+                  <input id="s-lng" type="text" inputmode="decimal" placeholder="100.378214" />
+                  <p class="hint">Gunakan titik, contoh: 100.378214</p>
+                </div>
+
+                <div class="form__row">
+                  <label class="label" for="s-radius">Radius absensi (meter)</label>
+                  <input id="s-radius" type="number" min="10" step="1" />
+                </div>
+
+                <div class="form__row">
+                  <button class="btn btn--secondary" id="btn-use-my-location" type="button">Gunakan Lokasi Saya Sekarang</button>
+                </div>
+
+                <div class="form__row">
+                  <label class="label" for="s-jam">Jam batas terlambat</label>
+                  <input id="s-jam" type="time" />
+                </div>
+
+                <button class="btn btn--primary btn--block" type="submit">SIMPAN PENGATURAN</button>
+              </form>
+            </div>
+
+            <div class="card">
+              <h3>Keamanan dan Data</h3>
+
+              <div class="kv">
+                <div class="kv__row"><span class="muted">Secret key</span><span class="mono kv__val" id="s-secret">-</span></div>
+                <div class="kv__row"><span class="muted">Secret hash (sk)</span><span class="mono kv__val" id="s-sk">-</span></div>
+              </div>
+
+              <div class="row row--gap" style="margin-top:1rem">
+                <button class="btn btn--secondary" id="btn-secret-regenerate" type="button">Regenerate Secret Key</button>
+                <button class="btn btn--secondary" id="btn-print-qr" type="button">Mode Print QR</button>
+              </div>
+
+              <div class="hr"></div>
+
+              <form class="form" id="form-password">
+                <h4>Ganti Password Admin</h4>
+                <div class="form__row">
+                  <label class="label" for="p-new">Password baru</label>
+                  <input id="p-new" type="password" autocomplete="new-password" />
+                </div>
+                <button class="btn btn--secondary btn--block" type="submit">SIMPAN PASSWORD</button>
+              </form>
+
+              <div class="hr"></div>
+
+              <div class="stack">
+                <button class="btn btn--secondary" id="btn-export-json" type="button">Ekspor Semua Data (JSON)</button>
+                <div class="row">
+                  <button class="btn btn--secondary" id="btn-import-json" type="button">Impor Data (JSON)</button>
+                  <input id="file-json" type="file" accept=".json" style="display:none" />
+                </div>
+              </div>
+
+              <div class="danger card" style="margin-top:1rem">
+                <h4>Hapus Semua Data</h4>
+                <p class="muted">Tindakan ini tidak bisa dibatalkan.</p>
+                <button class="btn btn--danger btn--block" id="btn-wipe" type="button">HAPUS SEMUA DATA</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <!-- Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <!-- QR Code dari CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <!-- DB layer -->
+  <script src="db.js?v=20260514"></script><!-- // FIXED: path absolut-aman (local & deploy) -->
+  <script src="admin.js?v=20260514"></script>
+</body>
+</html> 
