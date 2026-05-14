@@ -880,16 +880,34 @@
           if (s) {
             s.sekre_lat = lat;
             s.sekre_lng = lng;
-            await DB.saveSettings(s);
+            const ok = await DB.saveSettings(s);
+            if (!ok) {
+              const last = window.__SB_LAST_ERROR;
+              const extra = last?.status ? ` (Supabase ${last.status})` : "";
+              showToast(`Gagal simpan lokasi ke server${extra}. Pastikan RLS/policy Supabase mengizinkan update.`, "error");
+              return;
+            }
+
+            // Read-back untuk memastikan benar-benar tersimpan
             await updateSettingsUI();
-            showToast(`Lokasi sekretariat disimpan: ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+            const s2 = await DB.getSettings();
+            const lat2 = Number.parseFloat(String(s2?.sekre_lat ?? ""));
+            const lng2 = Number.parseFloat(String(s2?.sekre_lng ?? ""));
+            if (Number.isFinite(lat2) && Number.isFinite(lng2)) {
+              showToast(`Lokasi sekretariat tersimpan: ${lat2.toFixed(5)}, ${lng2.toFixed(5)}`);
+            } else {
+              showToast("Lokasi tersimpan, tapi tidak terbaca saat verifikasi. Coba reload.", "error");
+            }
             return;
           }
-        } catch {
-          // fallback ke pesan di bawah
+        } catch (e) {
+          const last = window.__SB_LAST_ERROR;
+          const extra = last?.status ? ` (Supabase ${last.status})` : "";
+          showToast(`Gagal simpan lokasi${extra}. Klik Simpan Pengaturan manual.`, "error");
+          return;
         }
 
-        showToast(`Lokasi diambil: ${lat.toFixed(5)}, ${lng.toFixed(5)} (gagal simpan otomatis, klik Simpan Pengaturan)`, "error");
+        showToast(`Lokasi diambil: ${lat.toFixed(5)}, ${lng.toFixed(5)} (klik Simpan Pengaturan)`, "error");
       },
       (err) => {
         const msg = err.code === 1 ? "Izin lokasi ditolak. Aktifkan di pengaturan browser." :

@@ -614,14 +614,17 @@
       if (orgEl) orgEl.textContent = settings.nama_org;
     }
 
-    // FIXED: fallback koordinat sekretariat dari Supabase jika QR tidak membawa koordinat
-    if ((state.sekre.lat === null || state.sekre.lng === null) && settings && typeof settings === "object") {
-      const lat2 = toNumberOrNull(settings.sekre_lat); // FIXED
-      const lng2 = toNumberOrNull(settings.sekre_lng); // FIXED
-      const r2 = toNumberOrNull(settings.radius_meter); // FIXED
-      if (lat2 !== null) state.sekre.lat = lat2; // FIXED
-      if (lng2 !== null) state.sekre.lng = lng2; // FIXED
-      if (r2 !== null) state.sekre.radius = r2; // FIXED
+    // FIXED: Koordinat sekretariat sebaiknya menjadi "single source of truth" dari Supabase settings.
+    // Ini mencegah QR lama (yang dulu membawa a/o/r) mengunci lokasi lama.
+    if (settings && typeof settings === "object") {
+      const lat2 = toNumberOrNull(settings.sekre_lat);
+      const lng2 = toNumberOrNull(settings.sekre_lng);
+      const r2 = toNumberOrNull(settings.radius_meter);
+      if (lat2 !== null && lng2 !== null) {
+        state.sekre.lat = lat2;
+        state.sekre.lng = lng2;
+      }
+      if (r2 !== null) state.sekre.radius = r2;
     }
 
     if (state.sekre.lat === null || state.sekre.lng === null) {
