@@ -28,6 +28,7 @@ body {
   color: var(--text);
   background: var(--bg);
   overflow-x: hidden;
+  line-height: 1.5;
 }
 
 img { max-width: 100%; height: auto; }
@@ -350,6 +351,11 @@ input:focus, select:focus {
 
 /* Admin layout */
 .admin-layout { padding-top: 1rem; }
+
+/* Admin cards: lebih rapi/profesional */
+.page-admin .card {
+  padding: 1rem;
+}
 .admin-tabs {
   display: flex;
   gap: 0.25rem;
@@ -418,7 +424,10 @@ input:focus, select:focus {
   max-width: 100%;
 }
 
-.table-wrap { overflow: auto; }
+.table-wrap {
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
 .table {
   width: 100%;
   border-collapse: collapse;
@@ -436,6 +445,9 @@ input:focus, select:focus {
   font-size: 0.85rem;
   text-transform: uppercase;
   letter-spacing: 0.02em;
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 .table tbody tr:nth-child(even) { background: rgba(0,0,0,0.015); }
 .table tbody tr:hover { background: rgba(var(--primary-rgb), 0.14); }
@@ -562,6 +574,9 @@ input:focus, select:focus {
   .grid-2 { grid-template-columns: 1fr; }
   .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .search input { width: 100%; }
+
+  /* Tabel: jangan dipaksa mengecil di tablet/mobile */
+  .page-admin .table { min-width: 760px; }
 }
 
 @media (max-width: 520px) {
@@ -570,6 +585,18 @@ input:focus, select:focus {
   .topbar__meta { text-align: left; }
   .radio { grid-template-columns: 1fr; }
   input, select { font-size: 16px; }
+
+  .page-admin .card { padding: 0.85rem; }
+
+  .table-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  /* Agar header tabel sticky terasa di mobile (scroll di dalam tabel) */
+  .page-admin .table-wrap {
+    max-height: 60vh;
+  }
 
   .stepper { padding: 0.85rem; }
   .stepper__head { flex-direction: column; align-items: flex-start; }
