@@ -297,15 +297,6 @@
     return true;
   }
 
-  async function ensureQrCurrent() {
-    const saved = loadQrStateFromStorage();
-    if (saved) {
-      const ok = await renderQrFromState(saved, { silent: true });
-      if (ok) return;
-    }
-    await renderQr();
-  }
-
   function switchAdminTab(name) {
     document.querySelectorAll(".admin-tab").forEach((b) => {
       b.classList.toggle("active", b.dataset.tab === name);
@@ -313,7 +304,6 @@
     document.querySelectorAll(".admin-panel").forEach((p) => {
       p.classList.toggle("active", p.id === `tab-${name}`);
     });
-    if (name === "qr") ensureQrCurrent();
   }
 
   // ===== QR Code library =====
@@ -414,18 +404,9 @@
     }
   }
 
-  function startQrAutoRefresh() {
+  function stopQrAutoRefresh() {
     if (qrState.timer) window.clearInterval(qrState.timer);
-    const tick = async () => {
-      const rem = qrState.expiresAtSec ? secondsUntil(qrState.expiresAtSec) : 0;
-      const el = $("qr-remaining");
-      if (el) el.textContent = `${pad2(Math.floor(rem / 60))}:${pad2(rem % 60)}`;
-      if (rem === 0 && $("tab-qr").classList.contains("active")) {
-        await renderQr();
-      }
-    };
-    tick();
-    qrState.timer = window.setInterval(tick, 1000);
+    qrState.timer = null;
   }
 
   // ===== Anggota =====
@@ -1057,7 +1038,7 @@
       await renderQr();
     });
 
-    $("btn-qr-refresh").addEventListener("click", async () => { await renderQr(); });
+    // QR hanya dibuat lewat tombol submit form (GENERATE QR HARI INI)
 
     // Jadwal
     $("jadwal-filter").addEventListener("input", renderAllChecklists);
@@ -1301,8 +1282,7 @@
     ]);
 
     $("row-qr-piket").style.display = $("qr-type").value === "piket" ? "block" : "none";
-    await ensureQrCurrent();
-    startQrAutoRefresh();
+    stopQrAutoRefresh();
 
     await renderDashboard();
     window.setInterval(() => {
