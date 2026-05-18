@@ -58,7 +58,10 @@
   function rememberLastError(context, err) {
     const status = err?.status ?? err?.cause?.status ?? null; // FIXED: ambil status jika ada
     const message = err?.message || String(err); // FIXED
-    window.__SB_LAST_ERROR = { context, status, message, at: Date.now() }; // FIXED: simpan untuk debugging lintas file
+    const code = err?.code ?? null;
+    const details = err?.details ?? null;
+    const hint = err?.hint ?? null;
+    window.__SB_LAST_ERROR = { context, status, code, message, details, hint, at: Date.now() }; // FIXED: simpan untuk debugging lintas file
     if (status === 401) {
       console.error(
         `[Supabase 401] ${context}: request ditolak. Jika pakai key 'sb_publishable_*', pastikan domain Vercel kamu sudah di-allow di Supabase (Settings → API → Allowed Origins/URLs). Alternatif: gunakan 'anon public key' (JWT eyJ...) di db.js.`,

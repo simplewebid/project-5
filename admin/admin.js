@@ -932,6 +932,20 @@
     );
   }
 
+  function formatLastSupabaseError() {
+    const last = window.__SB_LAST_ERROR;
+    if (!last) return "";
+    const parts = [];
+    if (last.context) parts.push(String(last.context));
+    if (last.status) parts.push(`status ${last.status}`);
+    if (last.code) parts.push(`code ${last.code}`);
+    const head = parts.length ? `[${parts.join(" · ")}]` : "";
+    const msg = last.message ? String(last.message) : "";
+    const details = last.details ? ` — ${String(last.details)}` : "";
+    const hint = last.hint ? ` (hint: ${String(last.hint)})` : "";
+    return `${head} ${msg}${details}${hint}`.trim();
+  }
+
   async function regenerateSecret() {
     const ok = confirm("Regenerate secret key? QR lama akan menjadi tidak valid.");
     if (!ok) return;
@@ -1102,7 +1116,7 @@
     // Settings
     $("form-settings").addEventListener("submit", async (e) => {
       e.preventDefault();
-      const s = await DB.getSettings();
+      const s = (await DB.getSettings()) || (await ensureDefaultSettings());
       s.nama_org = $("s-org").value.trim() || s.nama_org;
       const latRaw = $("s-lat").value; // FIXED
       const lngRaw = $("s-lng").value; // FIXED
@@ -1116,7 +1130,13 @@
       s.sekre_lng = lng; // FIXED
       s.radius_meter = Number.parseFloat(String($("s-radius").value ?? "").replace(",", ".")) || 100; // FIXED
       s.jam_batas_terlambat = $("s-jam").value || "08:00";
-      await DB.saveSettings(s);
+      const ok = await DB.saveSettings(s);
+      if (!ok) {
+        const errText = formatLastSupabaseError();
+        const extra = errText ? `\n${errText}` : "";
+        showToast(`Gagal menyimpan ke server.\nCek Supabase: RLS/policy & Allowed Origins.${extra}`, "error");
+        return;
+      }
       await updateSettingsUI();
       showToast("Pengaturan disimpan.");
     });
