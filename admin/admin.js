@@ -906,9 +906,9 @@
             s.sekre_lng = lng;
             const ok = await DB.saveSettings(s);
             if (!ok) {
-              const last = window.__SB_LAST_ERROR;
-              const extra = last?.status ? ` (Supabase ${last.status})` : "";
-              showToast(`Lokasi terisi, tapi gagal simpan ke server${extra}. Pastikan RLS/policy Supabase mengizinkan update.`, "error");
+              const errText = formatLastSupabaseError();
+              const extra = errText ? `\n${errText}` : "";
+              showToast(`Lokasi terisi, tapi gagal simpan ke server.${extra}`, "error");
               return;
             }
 

@@ -53,12 +53,8 @@
     if (!window.supabase) throw new Error("Supabase client belum dimuat.");
     const fetchNoStore = (input, init) => {
       const opts = init ? { ...init } : {};
+      // Jangan menambahkan header custom di sini (bisa memicu CORS preflight di mobile/in-app browser)
       opts.cache = "no-store";
-      opts.headers = {
-        ...(opts.headers || {}),
-        "Cache-Control": "no-cache",
-        Pragma: "no-cache",
-      };
       return fetch(input, opts);
     };
 
