@@ -850,9 +850,10 @@
 
   async function wipeAllData() {
     const ok1 = confirm("Hapus semua data? Ini tidak bisa dibatalkan.");
-    if (!ok1) return;
-    const confirm2 = prompt("Ketik HAPUS untuk konfirmasi:");
-    if (confirm2 !== "HAPUS") { showToast("Dibatalkan.", "error"); return; }
+    if (!ok1) { showToast("Dibatalkan.", "error"); return; }
+    const confirm2 = prompt("Ketik HAPUS untuk konfirmasi (huruf besar/kecil bebas):");
+    const normalized = String(confirm2 ?? "").trim().toUpperCase();
+    if (normalized !== "HAPUS") { showToast("Dibatalkan. Ketik 'HAPUS' untuk melanjutkan.", "error"); return; }
     const ok = await DB.wipeAllData();
     if (ok) {
       setLoggedIn(false);
