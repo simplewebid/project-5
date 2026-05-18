@@ -31,6 +31,23 @@
   </header>
 
   <main class="container admin-layout">
+    <!-- LOGIN -->
+    <section class="card" id="panel-login" style="display:none">
+      <h2>Login Admin</h2>
+      <p class="muted">Masukkan password untuk masuk dashboard.</p>
+      <form class="form" id="form-login">
+        <div class="form__row">
+          <label class="label" for="input-password">Password</label>
+          <input id="input-password" type="password" autocomplete="current-password" required />
+        </div>
+        <button class="btn btn--primary btn--block" type="submit">MASUK</button>
+      </form>
+
+      <div class="hr"></div>
+      <button class="btn btn--secondary btn--block" id="btn-reset-password" type="button">Reset Password Admin</button>
+      <p class="muted small">Gunakan jika lupa password.</p>
+    </section>
+
     <!-- DASHBOARD -->
     <section id="panel-dashboard" style="display:none">
       <nav class="admin-tabs" aria-label="Navigasi admin">
@@ -41,6 +58,7 @@
         <button class="admin-tab" data-tab="rekap">Rekap</button>
         <button class="admin-tab" data-tab="settings">Pengaturan</button>
         <div class="admin-tabs__spacer"></div>
+        <button class="btn btn--ghost" id="btn-logout" type="button">Keluar</button>
       </nav>
 
       <div class="admin-panels">
@@ -454,6 +472,17 @@
                 <button class="btn btn--secondary" id="btn-secret-regenerate" type="button">Regenerate Secret Key</button>
                 <button class="btn btn--secondary" id="btn-print-qr" type="button">Mode Print QR</button>
               </div>
+
+              <div class="hr"></div>
+
+              <form class="form" id="form-password">
+                <h4>Ganti Password Admin</h4>
+                <div class="form__row">
+                  <label class="label" for="p-new">Password baru</label>
+                  <input id="p-new" type="password" autocomplete="new-password" />
+                </div>
+                <button class="btn btn--secondary btn--block" type="submit">SIMPAN PASSWORD</button>
+              </form>
 
               <div class="hr"></div>
 

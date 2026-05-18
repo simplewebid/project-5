@@ -152,18 +152,29 @@
     return sha256Hex(secretKey);
   }
 
-  // ===== Login =====
-  // Admin dashboard dibuat tanpa password (sesuai permintaan).
+  // ===== Login (localStorage agar persisten) =====
+
+  function setLoggedIn(v) {
+    localStorage.setItem("sekre_admin_logged_in", v ? "1" : "0");
+  }
+
+  function isLoggedIn() {
+    return localStorage.getItem("sekre_admin_logged_in") === "1";
+  }
 
   // ===== Default settings =====
 
   async function ensureDefaultSettings() {
     const existing = await DB.getSettings();
 
+    // Default password diset, tapi tidak pernah ditampilkan di UI.
+    const defaultHash = await sha256Hex("admin123");
+
     if (existing && typeof existing === "object") {
       const repaired = { ...existing };
       if (!repaired.nama_org) repaired.nama_org = "ABSENSI HMTE FT UNP";
       if (!repaired.secret_key) repaired.secret_key = randomSecret(8);
+      if (!repaired.password_hash) repaired.password_hash = defaultHash;
       const parsedLat = Number.parseFloat(String(repaired.sekre_lat ?? "").replace(",", ".")); // FIXED: dukung koma desimal
       const parsedLng = Number.parseFloat(String(repaired.sekre_lng ?? "").replace(",", ".")); // FIXED: dukung koma desimal
       const parsedRadius = Number.parseFloat(String(repaired.radius_meter ?? "").replace(",", ".")); // FIXED: dukung koma desimal
@@ -178,6 +189,7 @@
     const fresh = {
       nama_org: "ABSENSI HMTE FT UNP",
       secret_key: randomSecret(8),
+      password_hash: defaultHash,
       sekre_lat: -0.9492,
       sekre_lng: 100.3543,
       radius_meter: 100,
@@ -185,6 +197,32 @@
     };
     await DB.saveSettings(fresh);
     return fresh;
+  }
+
+  async function checkPassword(input) {
+    const s = await DB.getSettings();
+    if (!s?.password_hash) return false;
+    const hash = await sha256Hex(String(input ?? "").trim());
+    return hash === s.password_hash;
+  }
+
+  async function resetPasswordToDefault() {
+    const ok = confirm("Reset password admin ke default?");
+    if (!ok) return;
+    const key = prompt("Ketik RESET untuk konfirmasi:");
+    if (String(key ?? "").trim().toUpperCase() !== "RESET") { showToast("Dibatalkan.", "error"); return; }
+    const s = await ensureDefaultSettings();
+    s.password_hash = await sha256Hex("admin123");
+    await DB.saveSettings(s);
+    showToast("Password direset ke default.");
+  }
+
+  async function changePassword(newPass) {
+    if (!newPass || newPass.length < 6) { showToast("Password minimal 6 karakter.", "error"); return; }
+    const s = await ensureDefaultSettings();
+    s.password_hash = await sha256Hex(newPass);
+    await DB.saveSettings(s);
+    showToast("Password disimpan.");
   }
 
   // ===== UI Tabs =====
@@ -834,6 +872,7 @@
 
   function useMyLocation() {
     if (!navigator.geolocation) { showToast("GPS tidak tersedia.", "error"); return; }
+    if (!window.isSecureContext) { showToast("GPS butuh HTTPS. Buka admin lewat link Vercel (https://...).", "error"); return; }
     showToast("Mengambil lokasi...");
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
@@ -844,7 +883,7 @@
         $("s-lat").value = lat.toFixed(6);
         $("s-lng").value = lng.toFixed(6);
 
-        // FIXED: langsung simpan ke Supabase agar scan berikutnya memakai lokasi terbaru
+        // Coba simpan ke Supabase agar scan berikutnya memakai lokasi terbaru
         try {
           const s = await DB.getSettings();
           if (s) {
@@ -854,7 +893,7 @@
             if (!ok) {
               const last = window.__SB_LAST_ERROR;
               const extra = last?.status ? ` (Supabase ${last.status})` : "";
-              showToast(`Gagal simpan lokasi ke server${extra}. Pastikan RLS/policy Supabase mengizinkan update.`, "error");
+              showToast(`Lokasi terisi, tapi gagal simpan ke server${extra}. Pastikan RLS/policy Supabase mengizinkan update.`, "error");
               return;
             }
 
@@ -873,14 +912,14 @@
         } catch (e) {
           const last = window.__SB_LAST_ERROR;
           const extra = last?.status ? ` (Supabase ${last.status})` : "";
-          showToast(`Gagal simpan lokasi${extra}. Klik Simpan Pengaturan manual.`, "error");
+          showToast(`Lokasi terisi, tapi gagal simpan otomatis${extra}. Klik Simpan Pengaturan.`, "error");
           return;
         }
 
-        showToast(`Lokasi diambil: ${lat.toFixed(5)}, ${lng.toFixed(5)} (klik Simpan Pengaturan)`, "error");
+        showToast(`Lokasi terisi: ${lat.toFixed(5)}, ${lng.toFixed(5)} (klik Simpan Pengaturan)`, "error");
       },
       (err) => {
-        const msg = err.code === 1 ? "Izin lokasi ditolak. Aktifkan di pengaturan browser." :
+        const msg = err.code === 1 ? "Izin lokasi ditolak. Aktifkan izin Lokasi untuk situs ini." :
                     err.code === 2 ? "Lokasi tidak bisa dideteksi. Coba lagi." :
                     err.code === 3 ? "Timeout GPS. Coba lagi." : "Lokasi tidak bisa diambil.";
         showToast(msg, "error");
@@ -956,6 +995,7 @@
     const btnLogout = $("btn-logout");
     if (btnLogout) {
       btnLogout.addEventListener("click", () => {
+        setLoggedIn(false);
         location.reload();
       });
     }
@@ -1080,6 +1120,15 @@
     $("btn-use-my-location").addEventListener("click", useMyLocation);
     $("btn-secret-regenerate").addEventListener("click", regenerateSecret);
 
+    const formPassword = $("form-password");
+    if (formPassword) {
+      formPassword.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        await changePassword($("p-new").value);
+        $("p-new").value = "";
+      });
+    }
+
     $("btn-export-json").addEventListener("click", exportAllDataJSON);
     $("btn-import-json").addEventListener("click", () => $("file-json").click());
     $("file-json").addEventListener("change", (e) => {
@@ -1171,12 +1220,35 @@
     $("r-week").value = `${iso.year}W${pad2(iso.week)}`;
     $("r-month").value = now.toISOString().slice(0, 7);
 
-    // Dashboard tanpa password
-    const panelLogin = $("panel-login");
-    if (panelLogin) panelLogin.style.display = "none";
+    // Login gating
+    if (!isLoggedIn()) {
+      $("panel-login").style.display = "block";
+      $("panel-dashboard").style.display = "none";
+
+      await ensureDefaultSettings();
+
+      const btnReset = $("btn-reset-password");
+      if (btnReset) {
+        btnReset.addEventListener("click", async () => {
+          try { await resetPasswordToDefault(); } catch { showToast("Reset gagal.", "error"); }
+        });
+      }
+
+      $("form-login").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const pass = $("input-password").value;
+        const ok = await checkPassword(pass);
+        if (!ok) { showToast("Password salah.", "error"); return; }
+        setLoggedIn(true);
+        location.reload();
+      });
+
+      return;
+    }
+
+    $("panel-login").style.display = "none";
     $("panel-dashboard").style.display = "block";
 
-    // Init settings jika belum ada
     await ensureDefaultSettings();
 
     bindAdminUI();
