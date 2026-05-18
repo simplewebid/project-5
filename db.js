@@ -51,7 +51,20 @@
   function getClient() {
     if (window._sbClient) return window._sbClient;
     if (!window.supabase) throw new Error("Supabase client belum dimuat.");
-    window._sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const fetchNoStore = (input, init) => {
+      const opts = init ? { ...init } : {};
+      opts.cache = "no-store";
+      opts.headers = {
+        ...(opts.headers || {}),
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
+      };
+      return fetch(input, opts);
+    };
+
+    window._sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+      global: { fetch: fetchNoStore },
+    });
     return window._sbClient;
   }
 

@@ -887,6 +887,7 @@
       async (pos) => {
         const lat = Number(pos.coords.latitude);
         const lng = Number(pos.coords.longitude);
+        const accuracy = Number(pos.coords.accuracy);
 
         // Kunci sebentar agar updateSettingsUI tidak mengembalikan nilai lama
         uiState.latLngLockUntil = Date.now() + 6000;
@@ -897,8 +898,10 @@
 
         // Coba simpan ke Supabase agar scan berikutnya memakai lokasi terbaru
         try {
-          const s = await DB.getSettings();
+          const s = (await DB.getSettings()) || (await ensureDefaultSettings());
           if (s) {
+            const prevLat = Number(s.sekre_lat);
+            const prevLng = Number(s.sekre_lng);
             s.sekre_lat = lat;
             s.sekre_lng = lng;
             const ok = await DB.saveSettings(s);
@@ -909,7 +912,23 @@
               return;
             }
 
-            showToast(`Lokasi sekretariat tersimpan: ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+            // Verifikasi server benar-benar menyimpan nilai baru
+            const s2 = await DB.getSettings();
+            const lat2 = Number(s2?.sekre_lat);
+            const lng2 = Number(s2?.sekre_lng);
+            const sameAsPrev = Number.isFinite(prevLat) && Number.isFinite(prevLng) && Math.abs(prevLat - lat) < 1e-7 && Math.abs(prevLng - lng) < 1e-7;
+            const sameAsServer = Number.isFinite(lat2) && Number.isFinite(lng2) && Math.abs(lat2 - lat) < 1e-7 && Math.abs(lng2 - lng) < 1e-7;
+
+            if (sameAsPrev) {
+              const accText = Number.isFinite(accuracy) ? ` (akurasi ±${Math.round(accuracy)}m)` : "";
+              showToast(`GPS terbaca sama dengan lokasi sebelumnya${accText}.`, "error");
+            } else if (!sameAsServer) {
+              const accText = Number.isFinite(accuracy) ? ` (akurasi ±${Math.round(accuracy)}m)` : "";
+              showToast(`Lokasi terbaca: ${lat.toFixed(5)}, ${lng.toFixed(5)}${accText}. Tapi server masih: ${Number.isFinite(lat2) ? lat2.toFixed(5) : "?"}, ${Number.isFinite(lng2) ? lng2.toFixed(5) : "?"}. Klik Simpan Pengaturan.`, "error");
+            } else {
+              const accText = Number.isFinite(accuracy) ? ` (akurasi ±${Math.round(accuracy)}m)` : "";
+              showToast(`Lokasi sekretariat tersimpan: ${lat.toFixed(5)}, ${lng.toFixed(5)}${accText}`);
+            }
             window.setTimeout(() => { uiState.latLngLockUntil = 0; }, 1500);
             return;
           }
@@ -921,7 +940,8 @@
           return;
         }
 
-        showToast(`Lokasi terisi: ${lat.toFixed(5)}, ${lng.toFixed(5)} (klik Simpan Pengaturan)`, "error");
+        const accText = Number.isFinite(accuracy) ? ` (akurasi ±${Math.round(accuracy)}m)` : "";
+        showToast(`Lokasi terisi: ${lat.toFixed(5)}, ${lng.toFixed(5)}${accText} (klik Simpan Pengaturan)`, "error");
         window.setTimeout(() => { uiState.latLngLockUntil = 0; }, 3000);
       },
       (err) => {
