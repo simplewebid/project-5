@@ -34,6 +34,9 @@
   );
   create index if not exists sekre_log_tanggal_idx on sekre_log(tanggal);
 
+  -- (Opsional tapi disarankan) Paksa 1 device hanya bisa absen 1x per tanggal
+  -- Jalankan file: sql/2026-05-18_unique_device_once_per_day.sql
+
   Row-Level Security: untuk kemudahan, nonaktifkan RLS pada tabel di atas
   atau tambahkan policy "allow all" sementara.
 */
@@ -252,23 +255,49 @@
   }
 
   // Cek apakah sudah absen (untuk cegah duplikat)
-  async function isAlreadyCheckedIn(tanggal, idAnggota, nama) {
+  async function isAlreadyCheckedIn(tanggal, idAnggota, nama, tipe = null) {
     try {
       const sb = getClient();
       if (idAnggota != null) {
-        const { data, error } = await sb
+        let q = sb
           .from("sekre_log")
           .select("data")
           .eq("tanggal", tanggal)
-          .filter("data->>id_anggota", "eq", String(idAnggota))
-          .limit(1);
+          .filter("data->>id_anggota", "eq", String(idAnggota));
+        if (tipe) q = q.filter("data->>tipe", "eq", String(tipe));
+        const { data, error } = await q.limit(1);
         if (error) throw error;
         return data && data.length > 0 ? data[0].data : null;
       } else {
         // Mode manual: cek by nama
         const log = await getLog(tanggal);
-        return log.find((x) => String(x.nama).toLowerCase() === String(nama).toLowerCase()) || null;
+        return (
+          log.find((x) => {
+            const sameName = String(x.nama).toLowerCase() === String(nama).toLowerCase();
+            const sameType = tipe ? String(x.tipe) === String(tipe) : true;
+            return sameName && sameType;
+          }) || null
+        );
       }
+    } catch {
+      return null;
+    }
+  }
+
+  // Cek apakah device sudah dipakai absen (untuk cegah 1 device > 1 absen)
+  async function isDeviceAlreadyCheckedIn(tanggal, deviceId, tipe = null) {
+    try {
+      if (!deviceId) return null;
+      const sb = getClient();
+      let q = sb
+        .from("sekre_log")
+        .select("data")
+        .eq("tanggal", tanggal)
+        .filter("data->>device_id", "eq", String(deviceId));
+      if (tipe) q = q.filter("data->>tipe", "eq", String(tipe));
+      const { data, error } = await q.order("created_at", { ascending: true }).limit(1);
+      if (error) throw error;
+      return data && data.length > 0 ? data[0].data : null;
     } catch {
       return null;
     }
@@ -344,6 +373,7 @@
     insertLog,
     getAllLogDates,
     isAlreadyCheckedIn,
+    isDeviceAlreadyCheckedIn,
     exportAllData,
     importAllData,
     wipeAllData,

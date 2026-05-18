@@ -26,6 +26,7 @@
     type: "bebas",
     date: null,
     expiresAtSec: null,
+    deviceId: null,
     sekre: { lat: null, lng: null, radius: 100 },
     gps: { lat: null, lng: null, accuracy: null, distance: null },
     remainingSec: 0,
@@ -92,6 +93,31 @@
 
   function isLate(waktuHHMMSS, jamBatasHHMM) {
     return timeToMinutes(String(waktuHHMMSS).slice(0, 5)) > timeToMinutes(jamBatasHHMM);
+  }
+
+  // ===== Device ID (1 perangkat = 1 absen) =====
+
+  function randomIdFallback() {
+    // 128-bit-ish random, URL-safe
+    const bytes = new Uint8Array(16);
+    try { crypto.getRandomValues(bytes); } catch { /* ignore */ }
+    let out = "";
+    for (const b of bytes) out += b.toString(16).padStart(2, "0");
+    return out;
+  }
+
+  function getOrCreateDeviceId() {
+    try {
+      const key = "sekre_device_id";
+      const existing = window.localStorage.getItem(key);
+      if (existing && existing.length >= 12) return existing;
+      const id = (crypto?.randomUUID ? crypto.randomUUID() : randomIdFallback());
+      window.localStorage.setItem(key, id);
+      return id;
+    } catch {
+      // localStorage mungkin diblokir; fallback session-only
+      return (crypto?.randomUUID ? crypto.randomUUID() : randomIdFallback());
+    }
   }
 
   // ===== Token =====
@@ -501,6 +527,21 @@
     const tipe = state.type;
     const tanggal = state.date;
 
+    // Cek duplikat berbasis device (1 device hanya boleh 1x absen per tanggal)
+    if (window.DB) {
+      const deviceExisting = await DB.isDeviceAlreadyCheckedIn(tanggal, state.deviceId);
+      if (deviceExisting) {
+        setResult(
+          "warning",
+          "Device sudah dipakai",
+          "Perangkat ini sudah melakukan absensi.",
+          `Absensi pertama tercatat pada ${deviceExisting.waktu}.`,
+          { nama: deviceExisting.nama, tipe: deviceExisting.tipe, waktu: deviceExisting.waktu },
+        );
+        return;
+      }
+    }
+
     // Cek duplikat di Supabase
     if (window.DB) {
       const existing = await DB.isAlreadyCheckedIn(tanggal, member?.id ?? null, nama);
@@ -526,6 +567,7 @@
       tipe,
       waktu,
       timestamp: Date.now(),
+      device_id: state.deviceId,
       status: "hadir",
       terlambat,
       lat_absen: state.gps.lat,
@@ -579,6 +621,8 @@
     updateClock();
     window.setInterval(updateClock, 1000);
     initChannel();
+
+    state.deviceId = getOrCreateDeviceId();
 
     // STEP 1: Validasi token
     setStep(1);
