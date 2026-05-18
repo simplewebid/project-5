@@ -229,6 +229,10 @@
 
   const QR_STORAGE_KEY = "sekre_qr_state_v1";
 
+  const uiState = {
+    latLngLockUntil: 0,
+  };
+
   function saveQrStateToStorage(data) {
     try { localStorage.setItem(QR_STORAGE_KEY, JSON.stringify(data)); } catch {}
   }
@@ -847,8 +851,11 @@
     if (!s) return;
     $("admin-org-name").textContent = s.nama_org;
     $("s-org").value = s.nama_org;
-    $("s-lat").value = String(s.sekre_lat ?? "").replace(",", "."); // FIXED: normalisasi tampilan
-    $("s-lng").value = String(s.sekre_lng ?? "").replace(",", "."); // FIXED: normalisasi tampilan
+    // Jangan menimpa input lat/lng sesaat setelah user klik "Gunakan Lokasi Saya"
+    if (Date.now() > uiState.latLngLockUntil) {
+      $("s-lat").value = String(s.sekre_lat ?? "").replace(",", "."); // FIXED: normalisasi tampilan
+      $("s-lng").value = String(s.sekre_lng ?? "").replace(",", "."); // FIXED: normalisasi tampilan
+    }
     $("s-radius").value = String(s.radius_meter ?? "").replace(",", "."); // FIXED: normalisasi tampilan
     $("s-jam").value = s.jam_batas_terlambat;
     $("s-secret").textContent = s.secret_key;
@@ -879,6 +886,9 @@
         const lat = Number(pos.coords.latitude);
         const lng = Number(pos.coords.longitude);
 
+        // Kunci sebentar agar updateSettingsUI tidak mengembalikan nilai lama
+        uiState.latLngLockUntil = Date.now() + 6000;
+
         // Isi form supaya user lihat angkanya
         $("s-lat").value = lat.toFixed(6);
         $("s-lng").value = lng.toFixed(6);
@@ -897,26 +907,20 @@
               return;
             }
 
-            // Read-back untuk memastikan benar-benar tersimpan
-            await updateSettingsUI();
-            const s2 = await DB.getSettings();
-            const lat2 = Number.parseFloat(String(s2?.sekre_lat ?? ""));
-            const lng2 = Number.parseFloat(String(s2?.sekre_lng ?? ""));
-            if (Number.isFinite(lat2) && Number.isFinite(lng2)) {
-              showToast(`Lokasi sekretariat tersimpan: ${lat2.toFixed(5)}, ${lng2.toFixed(5)}`);
-            } else {
-              showToast("Lokasi tersimpan, tapi tidak terbaca saat verifikasi. Coba reload.", "error");
-            }
+            showToast(`Lokasi sekretariat tersimpan: ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+            window.setTimeout(() => { uiState.latLngLockUntil = 0; }, 1500);
             return;
           }
         } catch (e) {
           const last = window.__SB_LAST_ERROR;
           const extra = last?.status ? ` (Supabase ${last.status})` : "";
           showToast(`Lokasi terisi, tapi gagal simpan otomatis${extra}. Klik Simpan Pengaturan.`, "error");
+          window.setTimeout(() => { uiState.latLngLockUntil = 0; }, 3000);
           return;
         }
 
         showToast(`Lokasi terisi: ${lat.toFixed(5)}, ${lng.toFixed(5)} (klik Simpan Pengaturan)`, "error");
+        window.setTimeout(() => { uiState.latLngLockUntil = 0; }, 3000);
       },
       (err) => {
         const msg = err.code === 1 ? "Izin lokasi ditolak. Aktifkan izin Lokasi untuk situs ini." :
@@ -1226,13 +1230,6 @@
       $("panel-dashboard").style.display = "none";
 
       await ensureDefaultSettings();
-
-      const btnReset = $("btn-reset-password");
-      if (btnReset) {
-        btnReset.addEventListener("click", async () => {
-          try { await resetPasswordToDefault(); } catch { showToast("Reset gagal.", "error"); }
-        });
-      }
 
       $("form-login").addEventListener("submit", async (e) => {
         e.preventDefault();
