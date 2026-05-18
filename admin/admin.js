@@ -371,9 +371,11 @@
       // Koordinat/radius diambil dari Supabase settings pada halaman anggota (fallback sudah ada di script.js).
       const url = new URL(window.location.origin + "/"); // FIXED: cukup root, tidak perlu /index.html
       url.searchParams.set("t", token);
+      // FIXED: cache-busting untuk beberapa in-app browser yang suka pakai cache meski header no-store
+      url.searchParams.set("v", String(Date.now()));
 
       // FIXED: fallback jika scanner/in-app browser membuang query (?)
-      url.hash = new URLSearchParams({ t: token }).toString();
+      url.hash = new URLSearchParams({ t: token, v: String(Date.now()) }).toString();
 
       qrState.url = url.toString();
       saveQrStateToStorage({
