@@ -244,14 +244,57 @@
       const parsed = JSON.parse(raw);
       if (!parsed || typeof parsed !== "object") return null;
       if (!parsed.url || !parsed.token || !parsed.expiresAtSec) return null;
-      if (secondsUntil(parsed.expiresAtSec) <= 0) {
-        try { localStorage.removeItem(QR_STORAGE_KEY); } catch {}
-        return null;
-      }
+      // Jangan hapus QR yang sudah kedaluwarsa.
+      // User ingin QR terakhir tetap tampil setelah refresh/keluar,
+      // dan countdown tetap berjalan sampai 00:00.
       return parsed;
     } catch {
       return null;
     }
+  }
+
+  function isQrExpired() {
+    return !qrState.expiresAtSec || secondsUntil(qrState.expiresAtSec) <= 0;
+  }
+
+  function updateQrCountdownUI() {
+    const el = $("qr-remaining");
+    if (!el) return;
+
+    const rem = qrState.expiresAtSec ? secondsUntil(qrState.expiresAtSec) : 0;
+    el.textContent = `${pad2(Math.floor(rem / 60))}:${pad2(rem % 60)}`;
+
+    if (rem <= 0) {
+      // Tampilkan status kedaluwarsa tanpa membuat QR baru otomatis.
+      const label = $("qr-label");
+      if (label && !String(label.textContent || "").includes("KEDALUWARSA")) {
+        label.textContent = `${label.textContent} - KEDALUWARSA`;
+      }
+    }
+  }
+
+  function startQrCountdownTimer() {
+    if (qrState.timer) window.clearInterval(qrState.timer);
+    updateQrCountdownUI();
+    qrState.timer = window.setInterval(updateQrCountdownUI, 1000);
+  }
+
+  function stopQrCountdownTimer() {
+    if (qrState.timer) window.clearInterval(qrState.timer);
+    qrState.timer = null;
+  }
+
+  async function restoreQrIfAny({ silent = true } = {}) {
+    const saved = loadQrStateFromStorage();
+    if (!saved) {
+      stopQrCountdownTimer();
+      return false;
+    }
+
+    const ok = await renderQrFromState(saved, { silent });
+    if (!ok) return false;
+    startQrCountdownTimer();
+    return true;
   }
 
   async function renderQrFromState(data, { silent = true } = {}) {
@@ -294,6 +337,8 @@
     $("print-title").textContent = labelType;
     $("print-meta").textContent = `${$("qr-date").value} - Berlaku hingga ${hhmm}`;
 
+    // Pastikan countdown tetap berjalan setelah refresh/keluar
+    startQrCountdownTimer();
     return true;
   }
 
@@ -304,6 +349,12 @@
     document.querySelectorAll(".admin-panel").forEach((p) => {
       p.classList.toggle("active", p.id === `tab-${name}`);
     });
+
+    if (name === "qr") {
+      // Pastikan QR terakhir muncul saat tab QR dibuka,
+      // tanpa membuat token baru otomatis.
+      restoreQrIfAny({ silent: true });
+    }
   }
 
   // ===== QR Code library =====
@@ -399,14 +450,12 @@
       $("print-meta").textContent = `${dateStr} - Berlaku hingga ${hhmm}`;
 
       showToast("QR berhasil dibuat.");
+
+      // Countdown berjalan, tapi tidak auto-generate QR baru.
+      startQrCountdownTimer();
     } catch (err) {
       showToast(`Gagal buat QR: ${err?.message || err}. Coba reload.`, "error");
     }
-  }
-
-  function stopQrAutoRefresh() {
-    if (qrState.timer) window.clearInterval(qrState.timer);
-    qrState.timer = null;
   }
 
   // ===== Anggota =====
@@ -1282,7 +1331,9 @@
     ]);
 
     $("row-qr-piket").style.display = $("qr-type").value === "piket" ? "block" : "none";
-    stopQrAutoRefresh();
+    // Restore QR terakhir agar tidak hilang saat refresh/keluar.
+    // Tidak membuat QR baru otomatis.
+    await restoreQrIfAny({ silent: true });
 
     await renderDashboard();
     window.setInterval(() => {
