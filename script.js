@@ -159,9 +159,6 @@
   async function validateTokenFromUrl() {
     const params = new URLSearchParams(window.location.search);
     let token = params.get("t") || params.get("token"); // FIXED: pakai let agar bisa fallback dari hash
-    let lat = params.get("a") || params.get("lat"); // FIXED: pakai let agar bisa fallback dari hash
-    let lng = params.get("o") || params.get("lng"); // FIXED: pakai let agar bisa fallback dari hash
-    let r = params.get("r"); // FIXED: pakai let agar bisa fallback dari hash
 
     // FIXED: beberapa scanner/WA kadang memindahkan query ke fragment (#...)
     if (!token && window.location.hash) { // FIXED
@@ -169,15 +166,14 @@
       const hashQuery = rawHash.includes("?") ? rawHash.split("?").slice(1).join("?") : rawHash; // FIXED
       const hParams = new URLSearchParams(hashQuery.replace(/^\?/, "")); // FIXED
       token = hParams.get("t") || hParams.get("token") || token; // FIXED
-      lat = hParams.get("a") || hParams.get("lat") || lat; // FIXED
-      lng = hParams.get("o") || hParams.get("lng") || lng; // FIXED
-      r = hParams.get("r") || r; // FIXED
     }
 
     state.token = token;
-    state.sekre.lat = toNumberOrNull(lat);
-    state.sekre.lng = toNumberOrNull(lng);
-    state.sekre.radius = toNumberOrNull(r) ?? 100;
+    // Koordinat sekretariat HARUS selalu dari Supabase settings agar tidak terkunci di QR lama.
+    // (QR lama mungkin masih membawa a/o/r, tapi kita abaikan.)
+    state.sekre.lat = null;
+    state.sekre.lng = null;
+    state.sekre.radius = 100;
 
     if (!token) return { valid: false, missingToken: true, error: "Tautan tidak memiliki token. Minta admin untuk generate QR ulang." };
 
@@ -213,13 +209,25 @@
       };
     }
 
-    // FIXED: koordinat bisa berasal dari QR *atau* fallback dari Supabase settings
-    // (tidak langsung dianggap invalid di tahap token)
+    // FIXED: koordinat selalu dari Supabase settings (single source of truth)
 
     state.date = decoded.date;
     state.expiresAtSec = expiresAtSec;
 
     return { valid: true, type: decoded.type, date: decoded.date };
+  }
+
+  function formatLastSupabaseError() {
+    const last = window.__SB_LAST_ERROR;
+    if (!last) return "";
+    const parts = [];
+    if (last.context) parts.push(String(last.context));
+    if (last.status) parts.push(`status ${last.status}`);
+    if (last.code) parts.push(`code ${last.code}`);
+    const head = parts.length ? `[${parts.join(" · ")}]` : "";
+    const msg = last.message ? String(last.message) : "";
+    const details = last.details ? ` — ${String(last.details)}` : "";
+    return `${head} ${msg}${details}`.trim();
   }
 
   // ===== GPS =====
@@ -669,10 +677,19 @@
         state.sekre.lng = lng2;
       }
       if (r2 !== null) state.sekre.radius = r2;
+    } else {
+      const errText = formatLastSupabaseError();
+      const msg = `Gagal memuat pengaturan lokasi dari server. Pastikan internet aktif dan coba scan ulang QR.\n${errText}`.trim();
+      $("gps-error").style.display = "block";
+      $("gps-error-title").textContent = "Pengaturan tidak terbaca";
+      $("gps-error-msg").textContent = msg;
+      setHead("Lokasi gagal", msg);
+      showToast("Gagal memuat pengaturan dari server.", "error");
+      return;
     }
 
     if (state.sekre.lat === null || state.sekre.lng === null) {
-      const msg = "Koordinat sekretariat belum diatur (atau tidak terbaca). Admin: isi lat/lng di Pengaturan dengan format titik, lalu generate QR ulang."; // FIXED
+      const msg = "Koordinat sekretariat belum diatur (atau tidak terbaca). Admin: pastikan lat/lng sudah disimpan di Pengaturan, lalu scan ulang QR."; // FIXED
       $("gps-error").style.display = "block"; // FIXED
       $("gps-error-title").textContent = "Koordinat sekretariat tidak valid"; // FIXED
       $("gps-error-msg").textContent = msg; // FIXED
