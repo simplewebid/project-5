@@ -16,6 +16,23 @@
 
   const CHANNEL_NAME = "absensi-sekre";
 
+  const DIVISI_ROLES = [
+    "Kepala Bidang",
+    "Sekretaris Bidang",
+    "Staff Bidang",
+  ];
+
+  const DIVISI_BIDANG = [
+    "Bidang Kemahasiswaan dan Alumni",
+    "Bidang PPSDA",
+    "Bidang Minat dan Bakat",
+    "Bidang Humas",
+    "Bidang Kerohanian",
+    "Bidang Kajian Akademik",
+    "Bidang Informasi dan Komunikasi",
+    "Bidang Kesekretariatan",
+  ];
+
   // ===== Util DOM =====
 
   function $(id) { return document.getElementById(id); }
@@ -52,6 +69,38 @@
     toast.style.borderLeftColor = type === "error" ? "var(--red)" : "var(--primary)";
     toast.classList.add("show");
     window.setTimeout(() => toast.classList.remove("show"), 3500);
+  }
+
+  function initDivisiDropdown() {
+    const el = $("a-divisi");
+    if (!el) return;
+    if (el.tagName !== "SELECT") return;
+
+    const opts = [];
+    opts.push({ value: "", label: "Pilih divisi..." });
+    for (const role of DIVISI_ROLES) {
+      for (const bidang of DIVISI_BIDANG) {
+        const label = `${role} - ${bidang}`;
+        opts.push({ value: label, label });
+      }
+    }
+
+    el.innerHTML = opts
+      .map((o, idx) => {
+        const disabled = idx === 0 ? "disabled" : "";
+        const selected = idx === 0 ? "selected" : "";
+        return `<option value="${escapeHtml(o.value)}" ${disabled} ${selected}>${escapeHtml(o.label)}</option>`;
+      })
+      .join("");
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;")
+      .replace(/'/g, "&#39;");
   }
 
   function setLoading(btnId, loading, originalText) {
@@ -1295,6 +1344,8 @@
     const iso = getISOWeek(now);
     $("r-week").value = `${iso.year}W${pad2(iso.week)}`;
     $("r-month").value = now.toISOString().slice(0, 7);
+
+    initDivisiDropdown();
 
     // Login gating
     if (!isLoggedIn()) {
