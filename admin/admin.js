@@ -43,6 +43,17 @@
     return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
   }
 
+  function isPlainDateKey(key) {
+    return /^\d{4}-\d{2}-\d{2}$/.test(String(key || ""));
+  }
+
+  function jadwalKey(dateStr, type) {
+    const d = String(dateStr || "");
+    const t = String(type || "");
+    if (!d) return d;
+    return t === "acara" ? `${d}__acara` : d;
+  }
+
   function formatTimeHHMMSS(d) {
     return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
   }
@@ -453,6 +464,12 @@
         await DB.saveJadwalDate(dateStr, ids);
       }
 
+      // Simpan peserta acara (terpisah dari jadwal piket)
+      if (type === "acara") {
+        const ids = getCheckedIds("acara-checklist");
+        await DB.saveJadwalDate(jadwalKey(dateStr, "acara"), ids);
+      }
+
       const loaded = await loadQRCodeLib();
       if (!loaded || typeof QRCode === "undefined") {
         showToast("Library QR tidak tersedia.", "error"); return;
@@ -632,6 +649,13 @@
       await renderChecklist("piket-checklist", "piket-filter", selected);
     }
 
+    if (type === "acara") {
+      const date = $("qr-date").value;
+      const key = jadwalKey(date, "acara");
+      const selected = Array.isArray(jadwal[key]) ? jadwal[key] : [];
+      await renderChecklist("acara-checklist", "acara-filter", selected);
+    }
+
     const date2 = $("jadwal-date").value;
     const selected2 = Array.isArray(jadwal[date2]) ? jadwal[date2] : [];
     await renderChecklist("jadwal-checklist", "jadwal-filter", selected2);
@@ -681,7 +705,7 @@
     const jadwal = await DB.getJadwal();
     const anggota = await DB.getAnggota();
     const month = new Date().toISOString().slice(0, 7);
-    const dates = Object.keys(jadwal).filter((d) => d.startsWith(month)).sort();
+    const dates = Object.keys(jadwal).filter((d) => isPlainDateKey(d) && d.startsWith(month)).sort();
     const rows = [["tanggal", "nama"]];
     dates.forEach((d) => {
       const ids = Array.isArray(jadwal[d]) ? jadwal[d] : [];
@@ -906,7 +930,7 @@
       const [jadwalObj, anggota] = await Promise.all([DB.getJadwal(), DB.getAnggota()]);
       const anggotaById = new Map((anggota || []).map((a) => [Number(a.id), a]));
       const tanggalTerjadwal = Object.keys(jadwalObj || {})
-        .filter((d) => d.startsWith(month))
+        .filter((d) => isPlainDateKey(d) && d.startsWith(month))
         .sort();
 
       if (!tanggalTerjadwal.length) {
@@ -1010,7 +1034,7 @@
       const [jadwalObj, anggota] = await Promise.all([DB.getJadwal(), DB.getAnggota()]);
       const anggotaById = new Map((anggota || []).map((a) => [Number(a.id), a]));
       const tanggalTerjadwal = Object.keys(jadwalObj || {})
-        .filter((d) => d.startsWith(month))
+        .filter((d) => isPlainDateKey(d) && d.startsWith(month))
         .sort();
       const rows = [["tanggal", "nama", "divisi", "status", "waktu"]];
 
@@ -1266,9 +1290,13 @@
     // QR
     $("qr-type").addEventListener("change", async () => {
       $("row-qr-piket").style.display = $("qr-type").value === "piket" ? "block" : "none";
+      const rowAcara = document.getElementById("row-qr-acara");
+      if (rowAcara) rowAcara.style.display = $("qr-type").value === "acara" ? "block" : "none";
       await renderAllChecklists();
     });
     $("piket-filter").addEventListener("input", renderAllChecklists);
+    const acaraFilter = document.getElementById("acara-filter");
+    if (acaraFilter) acaraFilter.addEventListener("input", renderAllChecklists);
 
     $("form-qr").addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -1541,6 +1569,8 @@
     ]);
 
     $("row-qr-piket").style.display = $("qr-type").value === "piket" ? "block" : "none";
+    const rowAcara = document.getElementById("row-qr-acara");
+    if (rowAcara) rowAcara.style.display = $("qr-type").value === "acara" ? "block" : "none";
     // Restore QR terakhir agar tidak hilang saat refresh/keluar.
     // Tidak membuat QR baru otomatis.
     await restoreQrIfAny({ silent: true });

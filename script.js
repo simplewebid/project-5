@@ -67,6 +67,13 @@
     return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
   }
 
+  function jadwalKey(dateStr, type) {
+    const d = String(dateStr || "");
+    const t = String(type || "");
+    if (!d) return d;
+    return t === "acara" ? `${d}__acara` : d;
+  }
+
   function unixSecNow() { return Math.floor(Date.now() / 1000); }
 
   function windowTimeNow() { return Math.floor(unixSecNow() / 300); }
@@ -547,6 +554,36 @@
     const member = getSelectedMember();
     const tipe = state.type;
     const tanggal = state.date;
+
+    // Validasi jadwal: piket harus sesuai jadwal, acara harus sesuai daftar peserta.
+    if (window.DB && (tipe === "piket" || tipe === "acara")) {
+      if (!member || member?.id == null) {
+        setResult(
+          "warning",
+          "Nama tidak valid",
+          "Untuk tipe ini, nama harus dipilih dari daftar.",
+          "Silakan pilih nama (bukan manual).",
+          { tipe },
+        );
+        return;
+      }
+
+      const jadwal = await DB.getJadwal();
+      const key = jadwalKey(tanggal, tipe);
+      const ids = Array.isArray(jadwal?.[key]) ? jadwal[key].map((x) => Number(x)) : [];
+      const allowed = new Set(ids);
+      if (!allowed.has(Number(member.id))) {
+        const label = tipe === "piket" ? "jadwal piket" : "daftar peserta acara";
+        setResult(
+          "warning",
+          "Tidak terdaftar",
+          "Nama ini tidak terdaftar untuk absensi ini.",
+          `Nama kamu tidak ada di ${label} untuk tanggal ${tanggal}.`,
+          { nama: member?.nama, tipe, tanggal },
+        );
+        return;
+      }
+    }
 
     // Cek duplikat berbasis device (1 device hanya boleh 1x absen per tanggal)
     if (window.DB) {
