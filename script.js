@@ -585,24 +585,24 @@
       }
     }
 
-    // Cek duplikat berbasis device (1 device hanya boleh 1x absen per tanggal)
+    // Cek duplikat berbasis device (1 device hanya boleh 1x absen per tanggal PER TIPE)
     if (window.DB) {
-      const deviceExisting = await DB.isDeviceAlreadyCheckedIn(tanggal, state.deviceId);
+      const deviceExisting = await DB.isDeviceAlreadyCheckedIn(tanggal, state.deviceId, tipe);
       if (deviceExisting) {
         setResult(
           "warning",
           "Device sudah dipakai",
-          "Perangkat ini sudah melakukan absensi.",
-          `Absensi pertama tercatat pada ${deviceExisting.waktu}.`,
+          `Perangkat ini sudah melakukan absensi ${tipe}.`,
+          `Absensi ${tipe} pertama tercatat pada ${deviceExisting.waktu}.`,
           { nama: deviceExisting.nama, tipe: deviceExisting.tipe, waktu: deviceExisting.waktu },
         );
         return;
       }
     }
 
-    // Cek duplikat di Supabase
+    // Cek duplikat di Supabase (per tanggal PER TIPE)
     if (window.DB) {
-      const existing = await DB.isAlreadyCheckedIn(tanggal, member?.id ?? null, nama);
+      const existing = await DB.isAlreadyCheckedIn(tanggal, member?.id ?? null, nama, tipe);
       if (existing) {
         setResult("warning", "Sudah absen", "Absensi sudah tercatat.", `Kamu sudah absen pada ${existing.waktu}.`,
           { nama: existing.nama, tipe: existing.tipe, waktu: existing.waktu });
