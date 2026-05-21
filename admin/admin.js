@@ -1303,6 +1303,22 @@
       await renderQr();
     });
 
+    const btnAcaraDelete = document.getElementById("btn-acara-delete");
+    if (btnAcaraDelete) {
+      btnAcaraDelete.addEventListener("click", async () => {
+        const type = $("qr-type").value;
+        if (type !== "acara") { showToast("Pilih tipe Acara dulu.", "error"); return; }
+        const dateStr = $("qr-date").value;
+        if (!dateStr) { showToast("Tanggal belum diisi.", "error"); return; }
+        const ok = confirm(`Hapus peserta acara untuk tanggal ${dateStr}?`);
+        if (!ok) return;
+        const ok2 = await DB.deleteJadwalDate(jadwalKey(dateStr, "acara"));
+        if (!ok2) { showToast("Gagal menghapus peserta acara. Coba lagi.", "error"); return; }
+        await renderAllChecklists();
+        showToast("Peserta acara dihapus.");
+      });
+    }
+
     // QR hanya dibuat lewat tombol submit form (GENERATE QR HARI INI)
 
     // Jadwal
