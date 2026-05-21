@@ -771,9 +771,39 @@
         totalJadwal: dutyIds.size,
         sudahPiket: log.filter((e) => e.tipe === "piket").length,
         sudahBebas: log.filter((e) => e.tipe === "bebas").length,
+        sudahAcara: log.filter((e) => e.tipe === "acara").length,
+        totalMasuk: log.length,
         belum: rows.filter((r) => r.scheduled && !r.entry).length,
       },
     };
+  }
+
+  // Live count updater (near real-time)
+  let __dashLiveTimer = null;
+  async function updateDashLiveCounts() {
+    try {
+      const tab = $("tab-dash");
+      if (!tab || !tab.classList.contains("active")) return;
+      const today = formatDateYYYYMMDD(new Date());
+      const log = await DB.getLog(today);
+      const piket = (log || []).filter((e) => e?.tipe === "piket").length;
+      const bebas = (log || []).filter((e) => e?.tipe === "bebas").length;
+      const acara = (log || []).filter((e) => e?.tipe === "acara").length;
+      const total = (log || []).length;
+
+      if ($("stat-piket")) $("stat-piket").textContent = String(piket);
+      if ($("stat-bebas")) $("stat-bebas").textContent = String(bebas);
+      if ($("stat-acara")) $("stat-acara").textContent = String(acara);
+      if ($("stat-total")) $("stat-total").textContent = String(total);
+    } catch {
+      // ignore
+    }
+  }
+
+  function startDashLiveCounts() {
+    if (__dashLiveTimer) window.clearInterval(__dashLiveTimer);
+    __dashLiveTimer = window.setInterval(updateDashLiveCounts, 3000);
+    updateDashLiveCounts();
   }
 
   async function renderDashboard() {
@@ -784,6 +814,8 @@
     $("stat-jadwal").textContent = String(stats.totalJadwal);
     $("stat-piket").textContent = String(stats.sudahPiket);
     $("stat-bebas").textContent = String(stats.sudahBebas);
+    if ($("stat-acara")) $("stat-acara").textContent = String(stats.sudahAcara || 0);
+    if ($("stat-total")) $("stat-total").textContent = String(stats.totalMasuk || 0);
     $("stat-belum").textContent = String(stats.belum);
 
     const q = $("dash-search").value.trim().toLowerCase();
@@ -1254,6 +1286,8 @@
         // Log sudah diinsert oleh halaman anggota via DB.insertLog,
         // tapi jika anggota dan admin di browser yang sama, bisa double-insert.
         // Kita skip insert di sini karena Supabase sudah jadi sumber kebenaran.
+        // Update cepat untuk angka live, dan refresh tabel/dashboard.
+        updateDashLiveCounts();
         renderDashboard();
       };
     } catch { /* abaikan */ }
@@ -1592,6 +1626,7 @@
     await restoreQrIfAny({ silent: true });
 
     await renderDashboard();
+    startDashLiveCounts();
     window.setInterval(() => {
       if ($("tab-dash").classList.contains("active")) renderDashboard();
     }, 10000);
