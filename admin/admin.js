@@ -439,6 +439,12 @@
       const dateStr = $("qr-date").value;
       const type = $("qr-type").value;
 
+      const today = formatDateYYYYMMDD(new Date());
+      if (dateStr && dateStr !== today) {
+        showToast(`QR hanya boleh dibuat untuk HARI INI (${today}).`, "error");
+        return;
+      }
+
       if (!dateStr) { showToast("Tanggal belum diisi.", "error"); return; }
 
       // Simpan jadwal piket
@@ -1270,13 +1276,31 @@
 
     // Jadwal
     $("jadwal-filter").addEventListener("input", renderAllChecklists);
+    $("jadwal-date").addEventListener("change", renderAllChecklists);
     $("form-jadwal").addEventListener("submit", async (e) => {
       e.preventDefault();
       const date = $("jadwal-date").value;
+      const today = formatDateYYYYMMDD(new Date());
+      if (date && date !== today) {
+        showToast(`SIMPAN JADWAL hanya boleh untuk HARI INI (${today}). Jika salah tanggal, gunakan tombol HAPUS.`, "error");
+        return;
+      }
       const ids = getCheckedIds("jadwal-checklist");
       await DB.saveJadwalDate(date, ids);
       await renderWeekCalendar();
       showToast("Jadwal tersimpan.");
+    });
+
+    $("btn-jadwal-delete").addEventListener("click", async () => {
+      const date = $("jadwal-date").value;
+      if (!date) { showToast("Tanggal belum diisi.", "error"); return; }
+      const ok = confirm(`Hapus jadwal piket untuk tanggal ${date}?`);
+      if (!ok) return;
+      const ok2 = await DB.deleteJadwalDate(date);
+      if (!ok2) { showToast("Gagal menghapus jadwal. Coba lagi.", "error"); return; }
+      await renderAllChecklists();
+      await renderWeekCalendar();
+      showToast("Jadwal dihapus.");
     });
 
     $("btn-week-prev").addEventListener("click", async () => {

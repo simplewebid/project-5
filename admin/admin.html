@@ -219,6 +219,7 @@
                   <div class="checklist" id="jadwal-checklist"></div>
                 </div>
                 <button class="btn btn--primary btn--block" type="submit">SIMPAN JADWAL</button>
+                <button class="btn btn--secondary btn--block" id="btn-jadwal-delete" type="button">HAPUS JADWAL (TANGGAL INI)</button>
               </form>
             </div>
 
@@ -384,20 +385,18 @@
                   <label class="label" for="r-month">Bulan</label>
                   <input id="r-month" type="month" />
                 </div>
+                <div>
+                  <label class="label" for="r-month-mode">Mode</label>
+                  <select id="r-month-mode">
+                    <option value="piket">Piket (dipisah per tanggal)</option>
+                    <option value="bebas">Hadir Bebas (rekap per anggota)</option>
+                  </select>
+                </div>
                 <button class="btn btn--secondary" id="btn-r-month-export" type="button">Ekspor CSV</button>
               </div>
               <div class="table-wrap" style="margin-top:1rem">
                 <table class="table">
-                  <thead>
-                    <tr>
-                      <th>Nama</th>
-                      <th>Divisi</th>
-                      <th>Total Hadir</th>
-                      <th>Total Hari</th>
-                      <th>Persentase</th>
-                      <th>Grafik</th>
-                    </tr>
-                  </thead>
+                  <thead id="thead-r-month"></thead>
                   <tbody id="tbody-r-month"></tbody>
                 </table>
               </div>

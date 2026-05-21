@@ -61,7 +61,7 @@
     window._sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
       global: { fetch: fetchNoStore },
     });
-    return window._sbClient;
+    return window._sbClient;                                                                                                                                                                                                                                                                                          
   }
 
   function rememberLastError(context, err) {
@@ -216,6 +216,22 @@
       return true;
     } catch (e) {
       console.warn("saveJadwalDate error:", e);
+      return false;
+    }
+  }
+
+  async function deleteJadwalDate(tanggal) {
+    try {
+      if (!tanggal) return false;
+      const sb = getClient();
+      const { error } = await sb
+        .from("sekre_jadwal")
+        .delete()
+        .eq("tanggal", tanggal);
+      if (error) throw error;
+      return true;
+    } catch (e) {
+      console.warn("deleteJadwalDate error:", e);
       return false;
     }
   }
@@ -381,6 +397,7 @@
     getNextAnggotaId,
     getJadwal,
     saveJadwalDate,
+    deleteJadwalDate,
     getLog,
     insertLog,
     getAllLogDates,
