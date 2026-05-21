@@ -370,7 +370,7 @@
     if ($("qr-type") && data.type) $("qr-type").value = data.type;
     if ($("row-qr-piket")) $("row-qr-piket").style.display = $("qr-type").value === "piket" ? "block" : "none";
 
-    const labelType = qrState.type === "piket" ? "QR PIKET" : "QR HADIR BEBAS";
+    const labelType = qrState.type === "piket" ? "QR PIKET" : (qrState.type === "acara" ? "QR ACARA" : "QR HADIR BEBAS");
 
     const container = $("qr-canvas");
     container.innerHTML = "";
@@ -488,7 +488,7 @@
         dateStr: qrState.dateStr,
       });
 
-      const labelType = type === "piket" ? "QR PIKET" : "QR HADIR BEBAS";
+      const labelType = type === "piket" ? "QR PIKET" : (type === "acara" ? "QR ACARA" : "QR HADIR BEBAS");
 
       const container = $("qr-canvas");
       container.innerHTML = "";
@@ -735,6 +735,7 @@
       if (!scheduled && !entry) { statusKey = "noduty"; badge = "badge--noduty"; statusText = "Tidak Dijadwal"; }
       else if (entry) {
         if (entry.tipe === "piket") { statusKey = "piket"; badge = "badge--piket"; statusText = "Hadir Piket"; }
+        else if (entry.tipe === "acara") { statusKey = "acara"; badge = "badge--bebas"; statusText = "Hadir Acara"; }
         else { statusKey = "bebas"; badge = "badge--bebas"; statusText = "Hadir Bebas"; }
       }
       return { anggota: a, entry, scheduled, statusKey, badge, statusText };
@@ -952,7 +953,7 @@
       return;
     }
 
-    // Mode: Hadir Bebas (rekap per anggota)
+    // Mode: Hadir Bebas / Acara (rekap per anggota)
     $("thead-r-month").innerHTML = `
       <tr>
         <th>Nama</th>
@@ -967,14 +968,15 @@
     const [dates, anggota] = await Promise.all([DB.getAllLogDates(), DB.getAnggota()]);
     const filteredDates = (dates || []).filter((d) => d.startsWith(month));
     const logsByDay = await Promise.all(filteredDates.map((d) => DB.getLog(d)));
-    const bebasByDay = logsByDay.map((log) => (log || []).filter((e) => String(e?.tipe || "").toLowerCase() === "bebas"));
-    const totalHari = bebasByDay.filter((log) => log.length > 0).length;
+    const typeKey = mode === "acara" ? "acara" : "bebas";
+    const filteredByDay = logsByDay.map((log) => (log || []).filter((e) => String(e?.tipe || "").toLowerCase() === typeKey));
+    const totalHari = filteredByDay.filter((log) => log.length > 0).length;
 
     const counts = new Map();
     let max = 0;
     (anggota || []).forEach((a) => {
       let hadir = 0;
-      bebasByDay.forEach((log) => { if (log.some((e) => Number(e.id_anggota) === Number(a.id))) hadir++; });
+      filteredByDay.forEach((log) => { if (log.some((e) => Number(e.id_anggota) === Number(a.id))) hadir++; });
       counts.set(Number(a.id), hadir);
       if (hadir > max) max = hadir;
     });
@@ -1046,19 +1048,20 @@
       return;
     }
 
-    // Mode: Hadir Bebas (rekap per anggota)
+    // Mode: Hadir Bebas / Acara (rekap per anggota)
     const [dates, anggota] = await Promise.all([DB.getAllLogDates(), DB.getAnggota()]);
     const filteredDates = (dates || []).filter((d) => d.startsWith(month));
     const logsByDay = await Promise.all(filteredDates.map((d) => DB.getLog(d)));
-    const bebasByDay = logsByDay.map((log) => (log || []).filter((e) => String(e?.tipe || "").toLowerCase() === "bebas"));
-    const totalHari = bebasByDay.filter((log) => log.length > 0).length;
+    const typeKey = mode === "acara" ? "acara" : "bebas";
+    const filteredByDay = logsByDay.map((log) => (log || []).filter((e) => String(e?.tipe || "").toLowerCase() === typeKey));
+    const totalHari = filteredByDay.filter((log) => log.length > 0).length;
     const rows = [["nama", "divisi", "total_hadir", "total_hari", "persentase"]];
     (anggota || []).forEach((a) => {
       let hadir = 0;
-      bebasByDay.forEach((log) => { if (log.some((e) => Number(e.id_anggota) === Number(a.id))) hadir++; });
+      filteredByDay.forEach((log) => { if (log.some((e) => Number(e.id_anggota) === Number(a.id))) hadir++; });
       rows.push([a.nama, a.divisi, String(hadir), String(totalHari), `${totalHari ? Math.round((hadir / totalHari) * 100) : 0}%`]);
     });
-    downloadText(`rekap_bulanan_bebas_${month}.csv`, toCSV(rows), "text/csv");
+    downloadText(`rekap_bulanan_${typeKey}_${month}.csv`, toCSV(rows), "text/csv");
   }
 
   // ===== Pengaturan =====
