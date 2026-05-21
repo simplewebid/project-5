@@ -948,6 +948,72 @@
     const modeEl = document.getElementById("r-month-mode");
     const mode = modeEl ? modeEl.value : "piket";
 
+    if (mode === "divisi") {
+      $("thead-r-month").innerHTML = `
+        <tr>
+          <th>Divisi</th>
+          <th>Piket</th>
+          <th>Bebas</th>
+          <th>Acara</th>
+          <th>Total</th>
+        </tr>
+      `;
+
+      const [dates, anggota] = await Promise.all([DB.getAllLogDates(), DB.getAnggota()]);
+      const filteredDates = (dates || []).filter((d) => d.startsWith(month));
+      if (!filteredDates.length) {
+        $("tbody-r-month").innerHTML = `<tr><td colspan="5" class="muted">Tidak ada data untuk bulan ini.</td></tr>`;
+        return;
+      }
+
+      const divisiById = new Map((anggota || []).map((a) => [String(a.id), a?.divisi || "-"]));
+      const logsByDay = await Promise.all(filteredDates.map((d) => DB.getLog(d)));
+      const allowedTypes = new Set(["piket", "bebas", "acara"]);
+
+      const countsByDivisi = new Map();
+      function ensure(divisi) {
+        const key = divisi || "-";
+        if (!countsByDivisi.has(key)) countsByDivisi.set(key, { piket: 0, bebas: 0, acara: 0, total: 0 });
+        return countsByDivisi.get(key);
+      }
+
+      (logsByDay || []).forEach((log) => {
+        (log || []).forEach((e) => {
+          const tipe = String(e?.tipe || "").toLowerCase();
+          if (!allowedTypes.has(tipe)) return;
+          const idKey = e?.id_anggota != null ? String(e.id_anggota) : null;
+          const divisi = idKey ? (divisiById.get(idKey) || "-") : "-";
+          const row = ensure(divisi);
+          row[tipe] = (row[tipe] || 0) + 1;
+          row.total += 1;
+        });
+      });
+
+      const divisiList = [...countsByDivisi.entries()].sort((a, b) => {
+        if (a[0] === "-") return 1;
+        if (b[0] === "-") return -1;
+        return String(a[0]).localeCompare(String(b[0]));
+      });
+
+      if (!divisiList.length) {
+        $("tbody-r-month").innerHTML = `<tr><td colspan="5" class="muted">Tidak ada data untuk bulan ini.</td></tr>`;
+        return;
+      }
+
+      $("tbody-r-month").innerHTML = divisiList
+        .map(([divisi, c]) => `
+          <tr>
+            <td>${divisi}</td>
+            <td class="mono">${c.piket || 0}</td>
+            <td class="mono">${c.bebas || 0}</td>
+            <td class="mono">${c.acara || 0}</td>
+            <td class="mono">${c.total || 0}</td>
+          </tr>
+        `)
+        .join("");
+      return;
+    }
+
     if (mode === "piket") {
       $("thead-r-month").innerHTML = `
         <tr>
@@ -1061,6 +1127,45 @@
     if (!month) return;
     const modeEl = document.getElementById("r-month-mode");
     const mode = modeEl ? modeEl.value : "piket";
+
+    if (mode === "divisi") {
+      const [dates, anggota] = await Promise.all([DB.getAllLogDates(), DB.getAnggota()]);
+      const filteredDates = (dates || []).filter((d) => d.startsWith(month));
+      const divisiById = new Map((anggota || []).map((a) => [String(a.id), a?.divisi || "-"]));
+      const logsByDay = await Promise.all(filteredDates.map((d) => DB.getLog(d)));
+      const allowedTypes = new Set(["piket", "bebas", "acara"]);
+
+      const countsByDivisi = new Map();
+      function ensure(divisi) {
+        const key = divisi || "-";
+        if (!countsByDivisi.has(key)) countsByDivisi.set(key, { piket: 0, bebas: 0, acara: 0, total: 0 });
+        return countsByDivisi.get(key);
+      }
+
+      (logsByDay || []).forEach((log) => {
+        (log || []).forEach((e) => {
+          const tipe = String(e?.tipe || "").toLowerCase();
+          if (!allowedTypes.has(tipe)) return;
+          const idKey = e?.id_anggota != null ? String(e.id_anggota) : null;
+          const divisi = idKey ? (divisiById.get(idKey) || "-") : "-";
+          const row = ensure(divisi);
+          row[tipe] = (row[tipe] || 0) + 1;
+          row.total += 1;
+        });
+      });
+
+      const rows = [["divisi", "piket", "bebas", "acara", "total"]];
+      const divisiList = [...countsByDivisi.entries()].sort((a, b) => {
+        if (a[0] === "-") return 1;
+        if (b[0] === "-") return -1;
+        return String(a[0]).localeCompare(String(b[0]));
+      });
+      divisiList.forEach(([divisi, c]) => {
+        rows.push([divisi, String(c.piket || 0), String(c.bebas || 0), String(c.acara || 0), String(c.total || 0)]);
+      });
+      downloadText(`rekap_bulanan_divisi_${month}.csv`, toCSV(rows), "text/csv");
+      return;
+    }
 
     if (mode === "piket") {
       const [jadwalObj, anggota] = await Promise.all([DB.getJadwal(), DB.getAnggota()]);
