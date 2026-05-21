@@ -293,6 +293,12 @@
       const parsed = JSON.parse(raw);
       if (!parsed || typeof parsed !== "object") return null;
       if (!parsed.url || !parsed.token || !parsed.expiresAtSec) return null;
+      // FIXED: jangan restore QR lintas hari (bisa bikin tanggal QR nyangkut lama)
+      const today = formatDateYYYYMMDD(new Date());
+      if (parsed.dateStr && parsed.dateStr !== today) {
+        try { localStorage.removeItem(QR_STORAGE_KEY); } catch {}
+        return null;
+      }
       // Jangan hapus QR yang sudah kedaluwarsa.
       // User ingin QR terakhir tetap tampil setelah refresh/keluar,
       // dan countdown tetap berjalan sampai 00:00.
@@ -876,21 +882,98 @@
   async function renderRekapBulanan() {
     const month = $("r-month").value;
     if (!month) return;
+    const modeEl = document.getElementById("r-month-mode");
+    const mode = modeEl ? modeEl.value : "piket";
+
+    if (mode === "piket") {
+      $("thead-r-month").innerHTML = `
+        <tr>
+          <th>Tanggal</th>
+          <th>Nama</th>
+          <th>Divisi</th>
+          <th>Status</th>
+          <th>Waktu</th>
+        </tr>
+      `;
+
+      const [jadwalObj, anggota] = await Promise.all([DB.getJadwal(), DB.getAnggota()]);
+      const anggotaById = new Map((anggota || []).map((a) => [Number(a.id), a]));
+      const tanggalTerjadwal = Object.keys(jadwalObj || {})
+        .filter((d) => d.startsWith(month))
+        .sort();
+
+      if (!tanggalTerjadwal.length) {
+        $("tbody-r-month").innerHTML = `<tr><td colspan="5" class="muted">Tidak ada jadwal piket untuk bulan ini.</td></tr>`;
+        return;
+      }
+
+      const logsByDate = await Promise.all(
+        tanggalTerjadwal.map(async (d) => {
+          const log = await DB.getLog(d);
+          return [d, (log || []).filter((e) => String(e?.tipe || "").toLowerCase() === "piket")];
+        }),
+      );
+      const logMap = new Map(logsByDate);
+
+      const rows = [];
+      tanggalTerjadwal.forEach((tanggal) => {
+        const ids = Array.isArray(jadwalObj[tanggal]) ? jadwalObj[tanggal] : [];
+        const log = logMap.get(tanggal) || [];
+        const logById = new Map(
+          log
+            .filter((e) => e && e.id_anggota != null)
+            .map((e) => [Number(e.id_anggota), e]),
+        );
+
+        ids.forEach((rawId) => {
+          const id = Number(rawId);
+          const a = anggotaById.get(id);
+          const entry = logById.get(id);
+          const hadir = Boolean(entry);
+          rows.push(`
+            <tr>
+              <td class="mono">${tanggal}</td>
+              <td>${a?.nama || `ID ${id}`}</td>
+              <td>${a?.divisi || "-"}</td>
+              <td class="mono">${hadir ? "H" : "-"}</td>
+              <td class="mono">${hadir ? (entry.waktu || "-") : "-"}</td>
+            </tr>
+          `);
+        });
+      });
+
+      $("tbody-r-month").innerHTML = rows.join("") || `<tr><td colspan="5" class="muted">Tidak ada data.</td></tr>`;
+      return;
+    }
+
+    // Mode: Hadir Bebas (rekap per anggota)
+    $("thead-r-month").innerHTML = `
+      <tr>
+        <th>Nama</th>
+        <th>Divisi</th>
+        <th>Total Hadir</th>
+        <th>Total Hari</th>
+        <th>Persentase</th>
+        <th>Grafik</th>
+      </tr>
+    `;
+
     const [dates, anggota] = await Promise.all([DB.getAllLogDates(), DB.getAnggota()]);
-    const filteredDates = dates.filter((d) => d.startsWith(month));
-    const totalHari = filteredDates.length;
+    const filteredDates = (dates || []).filter((d) => d.startsWith(month));
     const logsByDay = await Promise.all(filteredDates.map((d) => DB.getLog(d)));
+    const bebasByDay = logsByDay.map((log) => (log || []).filter((e) => String(e?.tipe || "").toLowerCase() === "bebas"));
+    const totalHari = bebasByDay.filter((log) => log.length > 0).length;
 
     const counts = new Map();
     let max = 0;
-    anggota.forEach((a) => {
+    (anggota || []).forEach((a) => {
       let hadir = 0;
-      logsByDay.forEach((log) => { if (log.some((e) => Number(e.id_anggota) === Number(a.id))) hadir++; });
+      bebasByDay.forEach((log) => { if (log.some((e) => Number(e.id_anggota) === Number(a.id))) hadir++; });
       counts.set(Number(a.id), hadir);
       if (hadir > max) max = hadir;
     });
 
-    $("tbody-r-month").innerHTML = anggota.map((a) => {
+    $("tbody-r-month").innerHTML = (anggota || []).map((a) => {
       const hadir = counts.get(Number(a.id)) || 0;
       const pct = totalHari ? Math.round((hadir / totalHari) * 100) : 0;
       const w = max ? Math.round((hadir / max) * 100) : 0;
@@ -912,17 +995,64 @@
   async function exportRekapBulananCSV() {
     const month = $("r-month").value;
     if (!month) return;
+    const modeEl = document.getElementById("r-month-mode");
+    const mode = modeEl ? modeEl.value : "piket";
+
+    if (mode === "piket") {
+      const [jadwalObj, anggota] = await Promise.all([DB.getJadwal(), DB.getAnggota()]);
+      const anggotaById = new Map((anggota || []).map((a) => [Number(a.id), a]));
+      const tanggalTerjadwal = Object.keys(jadwalObj || {})
+        .filter((d) => d.startsWith(month))
+        .sort();
+      const rows = [["tanggal", "nama", "divisi", "status", "waktu"]];
+
+      const logsByDate = await Promise.all(
+        tanggalTerjadwal.map(async (d) => {
+          const log = await DB.getLog(d);
+          return [d, (log || []).filter((e) => String(e?.tipe || "").toLowerCase() === "piket")];
+        }),
+      );
+      const logMap = new Map(logsByDate);
+
+      tanggalTerjadwal.forEach((tanggal) => {
+        const ids = Array.isArray(jadwalObj[tanggal]) ? jadwalObj[tanggal] : [];
+        const log = logMap.get(tanggal) || [];
+        const logById = new Map(
+          log
+            .filter((e) => e && e.id_anggota != null)
+            .map((e) => [Number(e.id_anggota), e]),
+        );
+        ids.forEach((rawId) => {
+          const id = Number(rawId);
+          const a = anggotaById.get(id);
+          const entry = logById.get(id);
+          rows.push([
+            tanggal,
+            a?.nama || `ID ${id}`,
+            a?.divisi || "-",
+            entry ? "H" : "-",
+            entry ? (entry.waktu || "-") : "-",
+          ]);
+        });
+      });
+
+      downloadText(`rekap_bulanan_piket_${month}.csv`, toCSV(rows), "text/csv");
+      return;
+    }
+
+    // Mode: Hadir Bebas (rekap per anggota)
     const [dates, anggota] = await Promise.all([DB.getAllLogDates(), DB.getAnggota()]);
-    const filteredDates = dates.filter((d) => d.startsWith(month));
-    const totalHari = filteredDates.length;
+    const filteredDates = (dates || []).filter((d) => d.startsWith(month));
     const logsByDay = await Promise.all(filteredDates.map((d) => DB.getLog(d)));
+    const bebasByDay = logsByDay.map((log) => (log || []).filter((e) => String(e?.tipe || "").toLowerCase() === "bebas"));
+    const totalHari = bebasByDay.filter((log) => log.length > 0).length;
     const rows = [["nama", "divisi", "total_hadir", "total_hari", "persentase"]];
-    anggota.forEach((a) => {
+    (anggota || []).forEach((a) => {
       let hadir = 0;
-      logsByDay.forEach((log) => { if (log.some((e) => Number(e.id_anggota) === Number(a.id))) hadir++; });
+      bebasByDay.forEach((log) => { if (log.some((e) => Number(e.id_anggota) === Number(a.id))) hadir++; });
       rows.push([a.nama, a.divisi, String(hadir), String(totalHari), `${totalHari ? Math.round((hadir / totalHari) * 100) : 0}%`]);
     });
-    downloadText(`rekap_bulanan_${month}.csv`, toCSV(rows), "text/csv");
+    downloadText(`rekap_bulanan_bebas_${month}.csv`, toCSV(rows), "text/csv");
   }
 
   // ===== Pengaturan =====
@@ -1212,6 +1342,8 @@
     $("r-week").addEventListener("change", renderRekapMingguan);
     $("btn-r-week-export").addEventListener("click", exportRekapMingguanCSV);
     $("r-month").addEventListener("change", renderRekapBulanan);
+    const rMonthMode = document.getElementById("r-month-mode");
+    if (rMonthMode) rMonthMode.addEventListener("change", renderRekapBulanan);
     $("btn-r-month-export").addEventListener("click", exportRekapBulananCSV);
 
     // Settings

@@ -63,6 +63,10 @@
     return `${hari}, ${d.getDate()} ${bulan} ${d.getFullYear()}`;
   }
 
+  function formatDateYYYYMMDD(d) {
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  }
+
   function unixSecNow() { return Math.floor(Date.now() / 1000); }
 
   function windowTimeNow() { return Math.floor(unixSecNow() / 300); }
@@ -181,6 +185,15 @@
     if (!decoded) return { valid: false, error: "Token tidak bisa dibaca. Scan ulang QR yang terbaru." };
 
     state.type = decoded.type || "bebas";
+
+    // FIXED: QR harus untuk tanggal hari ini (lokal). Kalau tidak, user akan absen ke tanggal lama.
+    const today = formatDateYYYYMMDD(new Date());
+    if (decoded.date && decoded.date !== today) {
+      return {
+        valid: false,
+        error: `QR ini untuk tanggal ${decoded.date}, bukan hari ini (${today}). Minta admin untuk generate QR HARI INI.`,
+      };
+    }
 
     const nowSec = unixSecNow();
     let expiresAtSec = null;
