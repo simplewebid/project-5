@@ -1262,7 +1262,6 @@
       $("s-lng").value = String(s.sekre_lng ?? "").replace(",", "."); // FIXED: normalisasi tampilan
     }
     $("s-radius").value = String(s.radius_meter ?? "").replace(",", "."); // FIXED: normalisasi tampilan
-    $("s-jam").value = s.jam_batas_terlambat;
     $("s-secret").textContent = s.secret_key;
     $("s-sk").textContent = await getSecretHash(s.secret_key);
   }
@@ -1598,7 +1597,6 @@
       s.sekre_lat = lat; // FIXED
       s.sekre_lng = lng; // FIXED
       s.radius_meter = Number.parseFloat(String($("s-radius").value ?? "").replace(",", ".")) || 100; // FIXED
-      s.jam_batas_terlambat = $("s-jam").value || "08:00";
       const ok = await DB.saveSettings(s);
       if (!ok) {
         const errText = formatLastSupabaseError();
