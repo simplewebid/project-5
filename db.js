@@ -376,12 +376,17 @@
   async function wipeAllData() {
     try {
       const sb = getClient();
-      await sb.from("sekre_log").delete().neq("id", 0);
-      await sb.from("sekre_jadwal").delete().neq("tanggal", "__never__");
-      await sb.from("sekre_anggota").delete().neq("id", 0);
-      await sb.from("sekre_settings").delete().eq("id", "main");
+      const r1 = await sb.from("sekre_log").delete().neq("id", 0);
+      if (r1.error) throw r1.error;
+      const r2 = await sb.from("sekre_jadwal").delete().neq("tanggal", "__never__");
+      if (r2.error) throw r2.error;
+      const r3 = await sb.from("sekre_anggota").delete().neq("id", 0);
+      if (r3.error) throw r3.error;
+      const r4 = await sb.from("sekre_settings").delete().eq("id", "main");
+      if (r4.error) throw r4.error;
       return true;
     } catch (e) {
+      rememberLastError("wipeAllData", e);
       console.warn("wipeAllData error:", e);
       return false;
     }

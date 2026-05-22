@@ -1270,7 +1270,9 @@
       setLoggedIn(false);
       location.reload();
     } else {
-      showToast("Gagal hapus data. Coba lagi.", "error");
+      const errText = formatLastSupabaseError();
+      const extra = errText ? `\n${errText}` : "";
+      showToast(`Gagal hapus data. Coba lagi.${extra}`, "error");
     }
   }
 
