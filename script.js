@@ -26,6 +26,8 @@
     type: "bebas",
     date: null,
     expiresAtSec: null,
+    issuedAtSec: null,
+    ttlSec: null,
     deviceId: null,
     sekre: { lat: null, lng: null, radius: 100 },
     gps: { lat: null, lng: null, accuracy: null, distance: null },
@@ -243,6 +245,8 @@
     if (Number.isFinite(decoded.iatSec)) {
       const ttl = Math.max(60, Math.min(21600, Number(decoded.ttlSec) || 300));
       expiresAtSec = decoded.iatSec + ttl;
+      state.issuedAtSec = decoded.iatSec;
+      state.ttlSec = ttl;
     } else {
       const wtNow = windowTimeNow();
       if (decoded.windowTime !== wtNow) {
@@ -254,6 +258,8 @@
         };
       }
       expiresAtSec = windowEndSecNow();
+      state.issuedAtSec = null;
+      state.ttlSec = null;
     }
 
     if (!Number.isFinite(expiresAtSec) || nowSec >= expiresAtSec) {
@@ -271,6 +277,14 @@
     state.expiresAtSec = expiresAtSec;
 
     return { valid: true, type: decoded.type, date: decoded.date };
+  }
+
+  function isLateByQrHalf() {
+    if (!Number.isFinite(state.issuedAtSec) || !Number.isFinite(state.ttlSec)) return null;
+    const elapsed = unixSecNow() - state.issuedAtSec;
+    const half = state.ttlSec / 2;
+    // Setengah awal: tidak terlambat. Setengah akhir: terlambat.
+    return elapsed >= half;
   }
 
   function formatLastSupabaseError() {
@@ -646,12 +660,18 @@
       }
     }
 
-    const settings = await loadSettings();
-    const jamBatas = settings?.jam_batas_terlambat || "08:00";
-
     const now = new Date();
     const waktu = formatTimeHHMMSS(now);
-    const terlambat = isLate(waktu, jamBatas);
+    let terlambat = false;
+    const lateByHalf = isLateByQrHalf();
+    if (lateByHalf === null) {
+      // Fallback: kalau token model lama (windowTime) atau tidak ada ttl, pakai jam batas settings.
+      const settings = await loadSettings();
+      const jamBatas = settings?.jam_batas_terlambat || "08:00";
+      terlambat = isLate(waktu, jamBatas);
+    } else {
+      terlambat = lateByHalf;
+    }
 
     const entry = {
       id_anggota: member?.id ?? null,
