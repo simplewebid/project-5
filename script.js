@@ -50,6 +50,14 @@
 
   function pad2(n) { return String(n).padStart(2, "0"); }
 
+  function formatRemaining(sec) {
+    const s = Math.max(0, Number(sec) || 0);
+    const hh = Math.floor(s / 3600);
+    const mm = Math.floor((s % 3600) / 60);
+    const ss = s % 60;
+    return hh > 0 ? `${pad2(hh)}:${pad2(mm)}:${pad2(ss)}` : `${pad2(mm)}:${pad2(ss)}`;
+  }
+
   function formatTimeHHMMSS(d) {
     return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
   }
@@ -150,17 +158,44 @@
       const raw = atob(normalizeTokenBase64(token)); // FIXED
       const parts = raw.split(":");
       if (parts.length < 4) return null;
-      const [type, dateStr, wtStr, secret] = parts;
+      const [type, dateStr, wtStr] = parts;
       const third = Number.parseInt(wtStr, 10);
-      if (!type || !dateStr || !Number.isFinite(third) || !secret) return null;
+      if (!type || !dateStr || !Number.isFinite(third)) return null;
       const isIat = third >= 1_000_000_000;
+      let ttlSec = 300;
+      let secret = null;
+      let nonce = null;
+
+      if (isIat) {
+        // Format baru: type:date:iatSec:ttlSec:secret:nonce
+        // Format lama: type:date:iatSec:secret:nonce
+        const maybeTtl = Number.parseInt(parts[3] ?? "", 10);
+        const ttlLooksValid = Number.isFinite(maybeTtl) && maybeTtl >= 60 && maybeTtl <= 21600;
+        if (ttlLooksValid) {
+          ttlSec = maybeTtl;
+          secret = parts[4] || null;
+          nonce = parts.slice(5).join(":") || null;
+        } else {
+          ttlSec = 300;
+          secret = parts[3] || null;
+          nonce = parts.slice(4).join(":") || null;
+        }
+      } else {
+        // windowTime (legacy): type:date:windowTime:secret:nonce
+        ttlSec = 300;
+        secret = parts[3] || null;
+        nonce = parts.slice(4).join(":") || null;
+      }
+
+      if (!secret) return null;
       return {
         type,
         date: dateStr,
         windowTime: isIat ? null : third,
         iatSec: isIat ? third : null,
+        ttlSec,
         secret,
-        nonce: parts.slice(4).join(":") || null,
+        nonce,
       };
     } catch {
       return null;
@@ -206,7 +241,8 @@
     let expiresAtSec = null;
 
     if (Number.isFinite(decoded.iatSec)) {
-      expiresAtSec = decoded.iatSec + 300;
+      const ttl = Math.max(60, Math.min(21600, Number(decoded.ttlSec) || 300));
+      expiresAtSec = decoded.iatSec + ttl;
     } else {
       const wtNow = windowTimeNow();
       if (decoded.windowTime !== wtNow) {
@@ -447,7 +483,7 @@
     const update = () => {
       const sec = state.expiresAtSec ? Math.max(0, state.expiresAtSec - unixSecNow()) : secondsUntilNextWindow();
       state.remainingSec = sec;
-      $("qr-countdown").textContent = `${pad2(Math.floor(sec / 60))}:${pad2(sec % 60)}`;
+      $("qr-countdown").textContent = formatRemaining(sec);
       if (sec === 0) showTokenExpiredUI();
     };
     update();
@@ -461,8 +497,8 @@
     $("token-error-title").textContent = "QR sudah kedaluwarsa";
     $("token-error-msg").textContent = "Minta QR terbaru dari admin.";
     $("token-countdown").style.display = "block";
-    const sec = secondsUntilNextWindow();
-    $("countdown-token").textContent = `${pad2(Math.floor(sec / 60))}:${pad2(sec % 60)}`;
+    const sec = state.expiresAtSec ? 0 : secondsUntilNextWindow();
+    $("countdown-token").textContent = formatRemaining(sec);
   }
 
   // ===== Fill member dropdown =====

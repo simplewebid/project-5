@@ -133,7 +133,7 @@
           <div class="panel-head">
             <div>
               <h2>Generate QR</h2>
-              <p class="muted">QR berlaku 5 menit. Buat ulang jika habis.</p>
+              <p class="muted">QR berlaku sesuai durasi yang dipilih. Buat ulang jika habis.</p>
             </div>
           </div>
 
@@ -151,6 +151,17 @@
                     <option value="piket">Piket</option>
                     <option value="bebas">Hadir Bebas</option>
                     <option value="acara">Acara (Rapat/Kegiatan)</option>
+                  </select>
+                </div>
+
+                <div class="form__row">
+                  <label class="label" for="qr-ttl">Masa berlaku QR</label>
+                  <select id="qr-ttl">
+                    <option value="900">15 menit</option>
+                    <option value="1800" selected>30 menit</option>
+                    <option value="3600">1 jam</option>
+                    <option value="10800">3 jam</option>
+                    <option value="21600">6 jam</option>
                   </select>
                 </div>
 

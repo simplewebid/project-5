@@ -196,16 +196,31 @@
 
   function randomNonce(len = 4) { return randomSecret(len); }
 
+  function clampQrTtlSec(v) {
+    const n = Number.parseInt(String(v ?? ""), 10);
+    if (!Number.isFinite(n)) return 1800;
+    return Math.max(60, Math.min(21600, n));
+  }
+
+  function formatRemaining(sec) {
+    const s = Math.max(0, Number(sec) || 0);
+    const hh = Math.floor(s / 3600);
+    const mm = Math.floor((s % 3600) / 60);
+    const ss = s % 60;
+    return hh > 0 ? `${pad2(hh)}:${pad2(mm)}:${pad2(ss)}` : `${pad2(mm)}:${pad2(ss)}`;
+  }
+
   // ===== Token =====
 
   function toBase64Url(b64) {
     return String(b64).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
   }
 
-  function generateToken(type, dateStr, secretKey) {
+  function generateToken(type, dateStr, ttlSec, secretKey) {
     const iat = unixSecNow();
+    const ttl = clampQrTtlSec(ttlSec);
     const nonce = randomNonce();
-    return toBase64Url(btoa(`${type}:${dateStr}:${iat}:${secretKey}:${nonce}`));
+    return toBase64Url(btoa(`${type}:${dateStr}:${iat}:${ttl}:${secretKey}:${nonce}`));
   }
 
   async function getSecretHash(secretKey) {
@@ -328,7 +343,7 @@
     if (!el) return;
 
     const rem = qrState.expiresAtSec ? secondsUntil(qrState.expiresAtSec) : 0;
-    el.textContent = `${pad2(Math.floor(rem / 60))}:${pad2(rem % 60)}`;
+    el.textContent = formatRemaining(rem);
 
     if (rem <= 0) {
       // Tampilkan status kedaluwarsa tanpa membuat QR baru otomatis.
@@ -397,7 +412,7 @@
 
     $("qr-label").textContent = `${labelType} - ${$("qr-date").value} - Berlaku hingga ${hhmm}`;
     $("qr-valid-until").textContent = hhmm;
-    $("qr-remaining").textContent = `${pad2(Math.floor(remNow / 60))}:${pad2(remNow % 60)}`;
+    $("qr-remaining").textContent = formatRemaining(remNow);
     $("qr-url").textContent = qrState.url;
     $("qr-token").textContent = qrState.token;
     $("print-title").textContent = labelType;
@@ -479,8 +494,9 @@
         showToast("Jalankan via server HTTP/HTTPS agar QR stabil.", "error");
       }
 
-      const token = generateToken(type, dateStr, settings.secret_key);
-      const expiresAtSec = unixSecNow() + 300;
+      const ttlSec = clampQrTtlSec($("qr-ttl")?.value);
+      const token = generateToken(type, dateStr, ttlSec, settings.secret_key);
+      const expiresAtSec = unixSecNow() + ttlSec;
       qrState.expiresAtSec = expiresAtSec;
       qrState.token = token;
       qrState.type = type;
@@ -521,7 +537,7 @@
 
       $("qr-label").textContent = `${labelType} - ${dateStr} - Berlaku hingga ${hhmm}`;
       $("qr-valid-until").textContent = hhmm;
-      $("qr-remaining").textContent = `${pad2(Math.floor(remNow / 60))}:${pad2(remNow % 60)}`;
+      $("qr-remaining").textContent = formatRemaining(remNow);
       $("qr-url").textContent = url.toString();
       $("qr-token").textContent = token;
       $("print-title").textContent = labelType;
