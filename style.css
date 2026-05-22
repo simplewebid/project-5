@@ -364,8 +364,11 @@ input:focus, select:focus {
   margin-bottom: 1rem;
 }
 .admin-tab {
+  appearance: none;
+  -webkit-appearance: none;
   border: 1px solid var(--border);
   background: #fff;
+  color: var(--text);
   padding: 0.65rem 0.85rem;
   border-radius: 12px;
   cursor: pointer;
