@@ -892,7 +892,7 @@
         <td class="mono">${e.tipe}</td>
         <td class="mono">${e.waktu}</td>
         <td class="mono">${Number.isFinite(e.jarak_meter) ? `${e.jarak_meter} m` : "-"}</td>
-        <td class="mono">${e.terlambat ? "YA" : "TIDAK"}</td>
+        <td class="mono">${e.terlambat === null || e.terlambat === undefined ? "-" : (e.terlambat ? "YA" : "TIDAK")}</td>
       </tr>
     `).join("");
   }
@@ -901,7 +901,15 @@
     const date = $("r-date").value;
     const log = await DB.getLog(date);
     const rows = [["nama", "nim", "divisi", "tipe", "waktu", "jarak_meter", "terlambat"]];
-    log.forEach((e) => rows.push([e.nama, e.nim, e.divisi, e.tipe, e.waktu, e.jarak_meter ?? "-", e.terlambat ? "YA" : "TIDAK"]));
+    log.forEach((e) => rows.push([
+      e.nama,
+      e.nim,
+      e.divisi,
+      e.tipe,
+      e.waktu,
+      e.jarak_meter ?? "-",
+      (e.terlambat === null || e.terlambat === undefined) ? "-" : (e.terlambat ? "YA" : "TIDAK"),
+    ]));
     downloadText(`rekap_harian_${date}.csv`, toCSV(rows), "text/csv");
   }
 

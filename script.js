@@ -116,6 +116,11 @@
     return timeToMinutes(String(waktuHHMMSS).slice(0, 5)) > timeToMinutes(jamBatasHHMM);
   }
 
+  function isWithinPiketHours(waktuHHMMSS) {
+    const m = timeToMinutes(String(waktuHHMMSS).slice(0, 5));
+    return m >= timeToMinutes("07:00") && m <= timeToMinutes("18:00");
+  }
+
   // ===== Device ID (1 perangkat = 1 absen) =====
 
   function randomIdFallback() {
@@ -662,15 +667,31 @@
 
     const now = new Date();
     const waktu = formatTimeHHMMSS(now);
-    let terlambat = false;
-    const lateByHalf = isLateByQrHalf();
-    if (lateByHalf === null) {
-      // Fallback: kalau token model lama (windowTime) atau tidak ada ttl, pakai jam batas settings.
-      const settings = await loadSettings();
-      const jamBatas = settings?.jam_batas_terlambat || "08:00";
-      terlambat = isLate(waktu, jamBatas);
-    } else {
-      terlambat = lateByHalf;
+
+    // Jam piket fleksibel tapi dibatasi rentang (07:00–18:00)
+    if (tipe === "piket" && !isWithinPiketHours(waktu)) {
+      setResult(
+        "warning",
+        "Di luar jam piket",
+        "Absensi piket hanya dibuka jam 07:00–18:00.",
+        `Sekarang ${waktu}. Silakan absen di jam piket.`,
+        { tipe, tanggal, waktu },
+      );
+      return;
+    }
+    // PIKET: tidak ada konsep "terlambat" (selalu '-').
+    // Bebas/Acara: tetap pakai aturan terlambat dari durasi QR (atau fallback jam batas).
+    let terlambat = null;
+    if (tipe !== "piket") {
+      const lateByHalf = isLateByQrHalf();
+      if (lateByHalf === null) {
+        // Fallback: kalau token model lama (windowTime) atau tidak ada ttl, pakai jam batas settings.
+        const settings = await loadSettings();
+        const jamBatas = settings?.jam_batas_terlambat || "08:00";
+        terlambat = isLate(waktu, jamBatas);
+      } else {
+        terlambat = lateByHalf;
+      }
     }
 
     const entry = {
@@ -708,7 +729,7 @@
 
     if (saved) {
       setResult("success", "Berhasil", "Absensi berhasil tersimpan.",
-        terlambat ? "Status: terlambat." : "Status: tepat waktu.",
+        tipe === "piket" ? "Status: hadir." : (terlambat ? "Status: terlambat." : "Status: tepat waktu."),
         { nama: entry.nama, tipe: entry.tipe, waktu: entry.waktu });
       showToast("Absensi tersimpan.");
     } else {
