@@ -199,7 +199,7 @@
   function clampQrTtlSec(v) {
     const n = Number.parseInt(String(v ?? ""), 10);
     if (!Number.isFinite(n)) return 1800;
-    return Math.max(60, Math.min(21600, n));
+    return Math.max(60, Math.min(86400, n));
   }
 
   function formatRemaining(sec) {

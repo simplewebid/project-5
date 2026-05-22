@@ -177,7 +177,7 @@
         // Format baru: type:date:iatSec:ttlSec:secret:nonce
         // Format lama: type:date:iatSec:secret:nonce
         const maybeTtl = Number.parseInt(parts[3] ?? "", 10);
-        const ttlLooksValid = Number.isFinite(maybeTtl) && maybeTtl >= 60 && maybeTtl <= 21600;
+        const ttlLooksValid = Number.isFinite(maybeTtl) && maybeTtl >= 60 && maybeTtl <= 86400;
         if (ttlLooksValid) {
           ttlSec = maybeTtl;
           secret = parts[4] || null;
@@ -248,7 +248,7 @@
     let expiresAtSec = null;
 
     if (Number.isFinite(decoded.iatSec)) {
-      const ttl = Math.max(60, Math.min(21600, Number(decoded.ttlSec) || 300));
+      const ttl = Math.max(60, Math.min(86400, Number(decoded.ttlSec) || 300));
       expiresAtSec = decoded.iatSec + ttl;
       state.issuedAtSec = decoded.iatSec;
       state.ttlSec = ttl;
