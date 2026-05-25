@@ -502,6 +502,23 @@
       qrState.type = type;
       qrState.dateStr = dateStr;
 
+      // Simpan QR aktif terbaru ke settings agar scan QR lama bisa auto-ikut QR terbaru.
+      try {
+        const prev = (settings && typeof settings === "object") ? (settings.active_qr || {}) : {};
+        const active = { ...(prev || {}) };
+        active[type] = { date: dateStr, token, ttlSec, updatedAtSec: unixSecNow() };
+        settings.active_qr = active;
+        const okActive = await DB.saveSettings(settings);
+        if (!okActive) {
+          const errText = formatLastSupabaseError();
+          const extra = errText ? `\n${errText}` : "";
+          showToast(`QR dibuat, tapi gagal menyimpan QR aktif ke server.${extra}`, "error");
+        }
+      } catch (e) {
+        // Abaikan: QR tetap ditampilkan; fallback masih berjalan seperti biasa.
+        console.warn("Failed to save active_qr:", e);
+      }
+
       // FIXED: Pendekkan payload QR agar mudah discan (banyak scanner suka "memotong" URL panjang)
       // Koordinat/radius diambil dari Supabase settings pada halaman anggota (fallback sudah ada di script.js).
       const url = new URL(window.location.origin + "/"); // FIXED: cukup root, tidak perlu /index.html

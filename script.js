@@ -35,6 +35,7 @@
     countdownTimer: null,
     channel: null,
     anggota: [],
+    qrUpdatedNotified: false,
   };
 
   // ===== Util =====
@@ -230,7 +231,7 @@
 
     if (!token) return { valid: false, missingToken: true, error: "Tautan tidak memiliki token. Minta admin untuk generate QR ulang." };
 
-    const decoded = decodeToken(token);
+    let decoded = decodeToken(token);
     if (!decoded) return { valid: false, error: "Token tidak bisa dibaca. Scan ulang QR yang terbaru." };
 
     state.type = decoded.type || "bebas";
@@ -246,25 +247,55 @@
 
     const nowSec = unixSecNow();
     let expiresAtSec = null;
+    const todayType = state.type;
 
-    if (Number.isFinite(decoded.iatSec)) {
-      const ttl = Math.max(60, Math.min(86400, Number(decoded.ttlSec) || 300));
-      expiresAtSec = decoded.iatSec + ttl;
-      state.issuedAtSec = decoded.iatSec;
-      state.ttlSec = ttl;
-    } else {
-      const wtNow = windowTimeNow();
-      if (decoded.windowTime !== wtNow) {
-        return {
-          valid: false,
-          expired: true,
-          nextInSec: secondsUntilNextWindow(),
-          error: "QR sudah kedaluwarsa. Minta QR terbaru dari admin.",
-        };
+    function computeExpiry(d) {
+      if (!d) return { ok: false };
+      if (Number.isFinite(d.iatSec)) {
+        const ttl = Math.max(60, Math.min(86400, Number(d.ttlSec) || 300));
+        return { ok: true, expiresAtSec: d.iatSec + ttl, issuedAtSec: d.iatSec, ttlSec: ttl, legacyWindow: false };
       }
-      expiresAtSec = windowEndSecNow();
-      state.issuedAtSec = null;
-      state.ttlSec = null;
+      const wtNow = windowTimeNow();
+      if (d.windowTime !== wtNow) {
+        return { ok: false, expired: true, legacyWindow: true };
+      }
+      return { ok: true, expiresAtSec: windowEndSecNow(), issuedAtSec: null, ttlSec: null, legacyWindow: true };
+    }
+
+    const initialExp = computeExpiry(decoded);
+    expiresAtSec = initialExp.expiresAtSec ?? null;
+    state.issuedAtSec = initialExp.issuedAtSec ?? null;
+    state.ttlSec = initialExp.ttlSec ?? null;
+
+    // Auto-update: jika admin sudah generate QR baru, pakai token aktif terbaru dari server.
+    let updated = false;
+    if (window.DB && typeof DB.getSettings === "function") {
+      try {
+        const s = await DB.getSettings();
+        const activeToken = s?.active_qr?.[todayType]?.token;
+        const activeDate = s?.active_qr?.[todayType]?.date;
+        if (activeToken && activeDate === today) {
+          // Pakai QR aktif jika token yang discan beda, atau token yang discan sudah expired.
+          const activeDecoded = decodeToken(activeToken);
+          const activeExp = computeExpiry(activeDecoded);
+          const activeOk = !!(activeDecoded && activeExp.ok && Number.isFinite(activeExp.expiresAtSec) && nowSec < activeExp.expiresAtSec);
+          const scannedOk = !!(initialExp.ok && Number.isFinite(expiresAtSec) && nowSec < expiresAtSec);
+
+          if (activeOk && (String(token) !== String(activeToken) || !scannedOk)) {
+            token = activeToken;
+            decoded = activeDecoded;
+            const newExp = computeExpiry(decoded);
+            expiresAtSec = newExp.expiresAtSec;
+            state.issuedAtSec = newExp.issuedAtSec;
+            state.ttlSec = newExp.ttlSec;
+            state.token = token;
+            state.type = decoded.type || todayType;
+            updated = true;
+          }
+        }
+      } catch {
+        // Jika gagal load settings, tetap pakai token yang discan (fallback).
+      }
     }
 
     if (!Number.isFinite(expiresAtSec) || nowSec >= expiresAtSec) {
@@ -281,7 +312,7 @@
     state.date = decoded.date;
     state.expiresAtSec = expiresAtSec;
 
-    return { valid: true, type: decoded.type, date: decoded.date };
+    return { valid: true, type: decoded.type, date: decoded.date, updated };
   }
 
   function isLateByQrHalf() {
@@ -780,6 +811,11 @@
       setHead("Gagal", tv.error);
       showToast(tv.error, "error");
       return;
+    }
+
+    if (tv.updated && !state.qrUpdatedNotified) {
+      state.qrUpdatedNotified = true;
+      showToast("QR sudah diperbarui. Memakai QR terbaru.");
     }
 
     setTypeFromUrl();
