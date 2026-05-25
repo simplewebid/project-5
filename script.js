@@ -553,30 +553,56 @@
 
   // ===== Fill member dropdown =====
 
-  function fillMembers(anggota) {
-    state.anggota = anggota;
+  function fillMembers(anggota, opts = {}) {
+    const allowManual = opts.allowManual !== false;
+    const placeholder = opts.placeholder || "Pilih nama";
+    const hintText = opts.hintText || "Jika namamu tidak ada, pilih \"Lainnya\" lalu isi nama manual.";
+
+    state.anggota = Array.isArray(anggota) ? anggota : [];
     const select = $("select-anggota");
+    const rowManual = $("row-nama-manual");
+    const inputManual = $("input-nama");
+    const hintEl = select?.parentElement?.querySelector(".hint") || null;
+
+    if (hintEl) {
+      hintEl.textContent = hintText;
+      hintEl.style.display = hintText ? "block" : "none";
+    }
+
+    if (rowManual) rowManual.style.display = "none";
+    if (inputManual) inputManual.required = false;
+
     select.innerHTML = "";
     const opt0 = document.createElement("option");
-    opt0.value = ""; opt0.textContent = "Pilih nama";
+    opt0.value = "";
+    opt0.textContent = placeholder;
     select.appendChild(opt0);
 
-    anggota.forEach((a) => {
+    state.anggota.forEach((a) => {
       const opt = document.createElement("option");
       opt.value = String(a.id);
       opt.textContent = a.nama;
       select.appendChild(opt);
     });
 
-    const optOther = document.createElement("option");
-    optOther.value = "other"; optOther.textContent = "Lainnya";
-    select.appendChild(optOther);
+    if (allowManual) {
+      const optOther = document.createElement("option");
+      optOther.value = "other";
+      optOther.textContent = "Lainnya";
+      select.appendChild(optOther);
+    }
 
-    select.addEventListener("change", () => {
-      const show = select.value === "other";
-      $("row-nama-manual").style.display = show ? "block" : "none";
-      $("input-nama").required = show;
-    });
+    select.onchange = () => {
+      const show = allowManual && select.value === "other";
+      if (rowManual) rowManual.style.display = show ? "block" : "none";
+      if (inputManual) inputManual.required = show;
+    };
+
+    // Jika tidak ada pilihan selain placeholder, matikan submit agar tidak membingungkan.
+    const btn = $("btn-absen");
+    const hasRealOptions = state.anggota.length > 0;
+    select.disabled = !hasRealOptions;
+    if (btn) btn.disabled = !hasRealOptions;
   }
 
   function setTypeFromUrl() {
@@ -821,9 +847,42 @@
     setTypeFromUrl();
     startQrCountdown();
 
-    // Load anggota dari Supabase (parallel dengan GPS agar lebih cepat)
-    const [anggota, settings] = await Promise.all([loadAnggota(), loadSettings()]);
-    fillMembers(anggota);
+    // Load anggota dari Supabase (parallel dengan settings)
+    const tipe = state.type;
+    const tanggal = state.date;
+    const needFilter = !!(window.DB && (tipe === "piket" || tipe === "acara"));
+    const [anggota, settings, jadwal] = await Promise.all([
+      loadAnggota(),
+      loadSettings(),
+      needFilter ? DB.getJadwal() : Promise.resolve(null),
+    ]);
+
+    let anggotaShown = anggota;
+    if (needFilter) {
+      const key = jadwalKey(tanggal, tipe);
+      const ids = Array.isArray(jadwal?.[key]) ? jadwal[key].map((x) => Number(x)) : [];
+      const allowed = new Set(ids.filter((x) => Number.isFinite(x)));
+      anggotaShown = (anggota || []).filter((a) => allowed.has(Number(a.id)));
+      fillMembers(anggotaShown, {
+        allowManual: false,
+        placeholder: tipe === "piket" ? "Pilih nama (yang dijadwalkan piket)" : "Pilih nama (peserta acara)",
+        hintText: tipe === "piket"
+          ? "Hanya nama yang dijadwalkan piket yang bisa dipilih."
+          : "Hanya nama yang terdaftar sebagai peserta acara yang bisa dipilih.",
+      });
+
+      if (!anggotaShown.length) {
+        showToast(
+          tipe === "piket"
+            ? "Belum ada jadwal piket untuk hari ini. Hubungi admin."
+            : "Belum ada peserta acara untuk hari ini. Hubungi admin.",
+          "error",
+        );
+      }
+    } else {
+      fillMembers(anggotaShown, { allowManual: true });
+    }
+
     if (settings?.nama_org) {
       const orgEl = $("org-name");
       if (orgEl) orgEl.textContent = settings.nama_org;
