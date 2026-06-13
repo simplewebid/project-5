@@ -680,6 +680,23 @@
     return boxes.length;
   }
 
+  function ensureAcaraSelectAllButton() {
+    let btn = document.getElementById("btn-acara-select-all");
+    if (btn) return btn;
+
+    const checklist = document.getElementById("acara-checklist");
+    if (!checklist || !checklist.parentElement) return null;
+
+    btn = document.createElement("button");
+    btn.className = "btn btn--secondary btn--block";
+    btn.id = "btn-acara-select-all";
+    btn.type = "button";
+    btn.textContent = "PILIH SEMUA NAMA";
+    btn.style.marginBottom = "0.75rem";
+    checklist.parentElement.insertBefore(btn, checklist);
+    return btn;
+  }
+
   async function renderAllChecklists() {
     const type = $("qr-type").value;
     const jadwal = await DB.getJadwal();
@@ -1487,7 +1504,7 @@
     const acaraFilter = document.getElementById("acara-filter");
     if (acaraFilter) acaraFilter.addEventListener("input", renderAllChecklists);
 
-    const btnAcaraSelectAll = document.getElementById("btn-acara-select-all");
+    const btnAcaraSelectAll = ensureAcaraSelectAllButton();
     if (btnAcaraSelectAll) {
       btnAcaraSelectAll.addEventListener("click", async () => {
         if (acaraFilter && acaraFilter.value) {
