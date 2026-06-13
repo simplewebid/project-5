@@ -672,6 +672,14 @@
     return ids;
   }
 
+  function setChecklistChecked(containerId, checked) {
+    const container = $(containerId);
+    if (!container) return 0;
+    const boxes = Array.from(container.querySelectorAll("input[type=checkbox]"));
+    boxes.forEach((cb) => { cb.checked = checked; });
+    return boxes.length;
+  }
+
   async function renderAllChecklists() {
     const type = $("qr-type").value;
     const jadwal = await DB.getJadwal();
@@ -1478,6 +1486,19 @@
     $("piket-filter").addEventListener("input", renderAllChecklists);
     const acaraFilter = document.getElementById("acara-filter");
     if (acaraFilter) acaraFilter.addEventListener("input", renderAllChecklists);
+
+    const btnAcaraSelectAll = document.getElementById("btn-acara-select-all");
+    if (btnAcaraSelectAll) {
+      btnAcaraSelectAll.addEventListener("click", async () => {
+        if (acaraFilter && acaraFilter.value) {
+          acaraFilter.value = "";
+          await renderAllChecklists();
+        }
+        const total = setChecklistChecked("acara-checklist", true);
+        if (total > 0) showToast(`${total} peserta acara dipilih.`);
+        else showToast("Tidak ada peserta acara yang tampil untuk dipilih.", "error");
+      });
+    }
 
     $("form-qr").addEventListener("submit", async (e) => {
       e.preventDefault();
