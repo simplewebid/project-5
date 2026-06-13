@@ -15,6 +15,7 @@
   "use strict";
 
   const CHANNEL_NAME = "absensi-sekre";
+  const DEFAULT_ATTENDANCE_RADIUS_METER = 150;
 
   const FALLBACK_MEMBERS = Array.from({ length: 100 }, (_, i) => {
     const n = String(i + 1).padStart(3, "0");
@@ -29,8 +30,8 @@
     issuedAtSec: null,
     ttlSec: null,
     deviceId: null,
-    sekre: { lat: null, lng: null, radius: 100 },
-    gps: { lat: null, lng: null, accuracy: null, distance: null },
+    sekre: { lat: null, lng: null, radius: DEFAULT_ATTENDANCE_RADIUS_METER },
+    gps: { lat: null, lng: null, accuracy: null, distance: null, tolerance: 0, effectiveRadius: DEFAULT_ATTENDANCE_RADIUS_METER },
     remainingSec: 0,
     countdownTimer: null,
     channel: null,
@@ -106,6 +107,19 @@
     const normalized = typeof s === "string" ? s.replace(",", ".") : s; // FIXED: dukung koma desimal
     const n = Number(normalized); // FIXED: parse setelah normalisasi
     return Number.isFinite(n) ? n : null;
+  }
+
+  function normalizeAttendanceRadius(radius) {
+    const n = Number(radius);
+    return Number.isFinite(n) && n > 0 ? n : DEFAULT_ATTENDANCE_RADIUS_METER;
+  }
+
+  function getIndoorGpsTolerance(accuracy) {
+    const acc = Number(accuracy);
+    if (!Number.isFinite(acc)) return 0;
+    if (acc > 50) return 40;
+    if (acc > 20) return 20;
+    return 0;
   }
 
   function timeToMinutes(hhmm) {
@@ -227,7 +241,7 @@
     // (QR lama mungkin masih membawa a/o/r, tapi kita abaikan.)
     state.sekre.lat = null;
     state.sekre.lng = null;
-    state.sekre.radius = 100;
+    state.sekre.radius = DEFAULT_ATTENDANCE_RADIUS_METER;
 
     if (!token) return { valid: false, missingToken: true, error: "Tautan tidak memiliki token. Minta admin untuk generate QR ulang." };
 
@@ -430,7 +444,8 @@
       }
 
       $("gps-status").textContent = "Meminta akses lokasi GPS...";
-      const desiredAccuracy = Math.max(150, state.sekre.radius);
+      state.sekre.radius = normalizeAttendanceRadius(state.sekre.radius);
+      const desiredAccuracy = state.sekre.radius;
       $("gps-status").textContent = "Mengunci lokasi (tunggu beberapa detik untuk akurasi terbaik)...";
       const pos = await getBestGpsPosition(20000, desiredAccuracy);
       const lat = pos.coords.latitude;
@@ -442,24 +457,30 @@
       state.gps.accuracy = accuracy;
 
       const dist = haversineMeter(lat, lng, state.sekre.lat, state.sekre.lng);
+      const tolerance = getIndoorGpsTolerance(accuracy);
+      const effectiveRadius = state.sekre.radius + tolerance;
       state.gps.distance = dist;
+      state.gps.tolerance = tolerance;
+      state.gps.effectiveRadius = effectiveRadius;
 
       $("gps-info").style.display = "block";
       $("gps-distance").textContent = `${Math.round(dist)} m`;
-      $("gps-radius").textContent = `${Math.round(state.sekre.radius)} m`;
+      $("gps-radius").textContent = tolerance > 0
+        ? `${Math.round(effectiveRadius)} m efektif (${Math.round(state.sekre.radius)} + toleransi ${Math.round(tolerance)} m)`
+        : `${Math.round(effectiveRadius)} m efektif`;
       $("gps-accuracy").textContent = `${Math.round(accuracy)} m`;
 
-      if (Number.isFinite(accuracy) && accuracy > Math.max(150, state.sekre.radius)) {
+      if (Number.isFinite(accuracy) && accuracy > effectiveRadius) {
         return {
           ok: false,
-          error: `Akurasi GPS terlalu rendah (${Math.round(accuracy)} m). Aktifkan "Lokasi Akurat"/"High accuracy", nyalakan Wi‑Fi, dan coba di tempat lebih terbuka.`,
+          error: `Akurasi GPS terlalu rendah (${Math.round(accuracy)} m, radius efektif ${Math.round(effectiveRadius)} m). Aktifkan "Lokasi Akurat"/"High accuracy", nyalakan Wi‑Fi, dan coba di tempat lebih terbuka.`,
         };
       }
 
-      if (dist > state.sekre.radius) {
+      if (dist > effectiveRadius) {
         return {
           ok: false,
-          error: `Kamu berada ${Math.round(dist)} meter dari sekretariat (radius: ${Math.round(state.sekre.radius)} m). Absensi hanya bisa di dalam radius.`,
+          error: `Kamu berada ${Math.round(dist)} meter dari sekretariat (radius efektif: ${Math.round(effectiveRadius)} m). Absensi hanya bisa di dalam radius.`,
         };
       }
 
@@ -898,7 +919,7 @@
         state.sekre.lat = lat2;
         state.sekre.lng = lng2;
       }
-      if (r2 !== null) state.sekre.radius = r2;
+      if (r2 !== null) state.sekre.radius = normalizeAttendanceRadius(r2);
     } else {
       const errText = formatLastSupabaseError();
       const msg = `Gagal memuat pengaturan lokasi dari server. Pastikan internet aktif dan coba scan ulang QR.\n${errText}`.trim();
