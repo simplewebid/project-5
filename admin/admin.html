@@ -173,7 +173,7 @@
                     <input id="piket-filter" type="text" placeholder="Cari anggota" />
                   </div>
                   <div class="checklist" id="piket-checklist"></div>
-                  <p class="muted small">Pilihan ini akan tersimpan sebagai jadwal piket untuk tanggal tersebut.</p>
+                  <p class="muted small">Pilihan ini akan tersimpan sebagai jadwal piket untuk hari QR tersebut.</p>
                   <p class="muted small">Jam piket: 07:00–18:00 (absen di luar jam ini akan ditolak).</p>
                 </div>
 
@@ -233,7 +233,7 @@
           <div class="panel-head">
             <div>
               <h2>Jadwal Piket</h2>
-              <p class="muted">Atur piket per tanggal, impor/ekspor CSV.</p>
+              <p class="muted">Atur piket per hari, berlaku seterusnya.</p>
             </div>
           </div>
 
@@ -242,8 +242,16 @@
               <h3>Kelola Jadwal Harian</h3>
               <form class="form" id="form-jadwal">
                 <div class="form__row">
-                  <label class="label" for="jadwal-date">Tanggal</label>
-                  <input id="jadwal-date" type="date" required />
+                  <label class="label" for="jadwal-date">Hari</label>
+                  <select id="jadwal-date" required>
+                    <option value="piket_day_1">Senin</option>
+                    <option value="piket_day_2">Selasa</option>
+                    <option value="piket_day_3">Rabu</option>
+                    <option value="piket_day_4">Kamis</option>
+                    <option value="piket_day_5">Jumat</option>
+                    <option value="piket_day_6">Sabtu</option>
+                    <option value="piket_day_0">Minggu</option>
+                  </select>
                 </div>
                 <div class="form__row">
                   <label class="label">Pilih anggota piket</label>
@@ -253,22 +261,18 @@
                   <div class="checklist" id="jadwal-checklist"></div>
                 </div>
                 <button class="btn btn--primary btn--block" type="submit">SIMPAN JADWAL</button>
-                <button class="btn btn--secondary btn--block" id="btn-jadwal-delete" type="button">HAPUS JADWAL (TANGGAL INI)</button>
+                <button class="btn btn--secondary btn--block" id="btn-jadwal-delete" type="button">HAPUS JADWAL HARI TERPILIH</button>
               </form>
             </div>
 
             <div class="card">
-              <h3>Kalender Mingguan</h3>
-              <div class="weekbar">
-                <button class="btn btn--secondary" id="btn-week-prev" type="button">Minggu Lalu</button>
-                <div class="mono" id="week-range">-</div>
-                <button class="btn btn--secondary" id="btn-week-next" type="button">Minggu Depan</button>
-              </div>
+              <h3>Jadwal Per Hari</h3>
+              <p class="muted small" id="week-range">Berlaku setiap minggu sampai diubah.</p>
               <div class="table-wrap" style="margin-top:1rem">
                 <table class="table" id="table-week">
                   <thead>
                     <tr>
-                      <th>Tanggal</th>
+                      <th>Hari</th>
                       <th>Jumlah</th>
                       <th>Nama</th>
                     </tr>
@@ -281,7 +285,7 @@
 
               <h3>Impor / Ekspor</h3>
               <div class="stack">
-                <button class="btn btn--secondary" id="btn-jadwal-export" type="button">Ekspor Jadwal Bulanan (CSV)</button>
+                <button class="btn btn--secondary" id="btn-jadwal-export" type="button">Ekspor Jadwal Per Hari (CSV)</button>
                 <div class="row">
                   <button class="btn btn--secondary" id="btn-jadwal-import" type="button">Impor Jadwal (CSV)</button>
                   <input id="file-jadwal" type="file" accept=".csv" style="display:none" />
@@ -380,6 +384,7 @@
                 </div>
                 <button class="btn btn--secondary" id="btn-r-export" type="button">Ekspor CSV</button>
               </div>
+              <p class="muted small" id="rekap-harian-summary" style="margin-top:.75rem">-</p>
               <div class="table-wrap" style="margin-top:1rem">
                 <table class="table">
                   <thead>
@@ -405,6 +410,7 @@
                 </div>
                 <button class="btn btn--secondary" id="btn-r-week-export" type="button">Ekspor CSV</button>
               </div>
+              <p class="muted small" id="rekap-mingguan-summary" style="margin-top:.75rem">-</p>
               <div class="table-wrap" style="margin-top:1rem">
                 <table class="table" id="table-r-week">
                   <thead id="thead-r-week"></thead>
@@ -423,13 +429,14 @@
                   <label class="label" for="r-month-mode">Mode</label>
                   <select id="r-month-mode">
                     <option value="divisi">Per divisi (piket/bebas/acara)</option>
-                    <option value="piket">Piket (dipisah per tanggal)</option>
+                    <option value="piket">Piket (jadwal per hari)</option>
                     <option value="bebas">Hadir Bebas (rekap per anggota)</option>
                     <option value="acara">Acara (rekap per anggota)</option>
                   </select>
                 </div>
                 <button class="btn btn--secondary" id="btn-r-month-export" type="button">Ekspor CSV</button>
               </div>
+              <p class="muted small" id="rekap-bulanan-summary" style="margin-top:.75rem">-</p>
               <div class="table-wrap" style="margin-top:1rem">
                 <table class="table">
                   <thead id="thead-r-month"></thead>
@@ -538,6 +545,6 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <!-- DB layer -->
   <script src="/db.js?v=20260514"></script><!-- // FIXED: pakai path absolut agar aman di Vercel -->
-  <script src="admin.js?v=20260613"></script>
+  <script src="admin.js?v=20260617"></script>
 </body>
 </html> 

@@ -79,11 +79,29 @@
     return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
   }
 
+  function dateFromYYYYMMDD(dateStr) {
+    const [y, m, d] = String(dateStr || "").split("-").map((x) => Number.parseInt(x, 10));
+    if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return null;
+    return new Date(y, m - 1, d);
+  }
+
+  function piketJadwalKey(dateStr) {
+    const d = dateFromYYYYMMDD(dateStr);
+    if (!d) return "";
+    return `piket_day_${d.getDay()}`;
+  }
+
+  function getPiketIdsForDate(jadwal, dateStr) {
+    const key = piketJadwalKey(dateStr);
+    if (Array.isArray(jadwal?.[key])) return jadwal[key];
+    return Array.isArray(jadwal?.[dateStr]) ? jadwal[dateStr] : [];
+  }
+
   function jadwalKey(dateStr, type) {
     const d = String(dateStr || "");
     const t = String(type || "");
     if (!d) return d;
-    return t === "acara" ? `${d}__acara` : d;
+    return t === "acara" ? `${d}__acara` : piketJadwalKey(d);
   }
 
   function unixSecNow() { return Math.floor(Date.now() / 1000); }
@@ -703,7 +721,8 @@
 
       const jadwal = await DB.getJadwal();
       const key = jadwalKey(tanggal, tipe);
-      const ids = Array.isArray(jadwal?.[key]) ? jadwal[key].map((x) => Number(x)) : [];
+      const rawIds = tipe === "piket" ? getPiketIdsForDate(jadwal, tanggal) : jadwal?.[key];
+      const ids = Array.isArray(rawIds) ? rawIds.map((x) => Number(x)) : [];
       const allowed = new Set(ids);
       if (!allowed.has(Number(member.id))) {
         const label = tipe === "piket" ? "jadwal piket" : "daftar peserta acara";
@@ -881,7 +900,8 @@
     let anggotaShown = anggota;
     if (needFilter) {
       const key = jadwalKey(tanggal, tipe);
-      const ids = Array.isArray(jadwal?.[key]) ? jadwal[key].map((x) => Number(x)) : [];
+      const rawIds = tipe === "piket" ? getPiketIdsForDate(jadwal, tanggal) : jadwal?.[key];
+      const ids = Array.isArray(rawIds) ? rawIds.map((x) => Number(x)) : [];
       const allowed = new Set(ids.filter((x) => Number.isFinite(x)));
       anggotaShown = (anggota || []).filter((a) => allowed.has(Number(a.id)));
       fillMembers(anggotaShown, {
