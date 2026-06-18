@@ -463,7 +463,7 @@
 
       $("gps-status").textContent = "Meminta akses lokasi GPS...";
       state.sekre.radius = normalizeAttendanceRadius(state.sekre.radius);
-      const desiredAccuracy = state.sekre.radius;
+      const desiredAccuracy = Math.max(150, state.sekre.radius);
       $("gps-status").textContent = "Mengunci lokasi (tunggu beberapa detik untuk akurasi terbaik)...";
       const pos = await getBestGpsPosition(20000, desiredAccuracy);
       const lat = pos.coords.latitude;
@@ -488,17 +488,10 @@
         : `${Math.round(effectiveRadius)} m efektif`;
       $("gps-accuracy").textContent = `${Math.round(accuracy)} m`;
 
-      if (Number.isFinite(accuracy) && accuracy > effectiveRadius) {
-        return {
-          ok: false,
-          error: `Akurasi GPS terlalu rendah (${Math.round(accuracy)} m, radius efektif ${Math.round(effectiveRadius)} m). Aktifkan "Lokasi Akurat"/"High accuracy", nyalakan Wi‑Fi, dan coba di tempat lebih terbuka.`,
-        };
-      }
-
       if (dist > effectiveRadius) {
         return {
           ok: false,
-          error: `Kamu berada ${Math.round(dist)} meter dari sekretariat (radius efektif: ${Math.round(effectiveRadius)} m). Absensi hanya bisa di dalam radius.`,
+          error: `Kamu berada ${Math.round(dist)} meter dari sekretariat (radius efektif: ${Math.round(effectiveRadius)} m, akurasi GPS ${Math.round(accuracy)} m). Absensi hanya bisa di dalam radius.`,
         };
       }
 
