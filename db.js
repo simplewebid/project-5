@@ -268,6 +268,23 @@
     }
   }
 
+  async function deleteLogForMember(tanggal, idAnggota) {
+    try {
+      if (!tanggal || idAnggota == null) return false;
+      const sb = getClient();
+      const { error } = await sb
+        .from("sekre_log")
+        .delete()
+        .eq("tanggal", tanggal)
+        .filter("data->>id_anggota", "eq", String(idAnggota));
+      if (error) throw error;
+      return true;
+    } catch (e) {
+      console.warn("deleteLogForMember error:", e);
+      return false;
+    }
+  }
+
   async function getAllLogDates() {
     try {
       const sb = getClient();
@@ -405,6 +422,7 @@
     deleteJadwalDate,
     getLog,
     insertLog,
+    deleteLogForMember,
     getAllLogDates,
     isAlreadyCheckedIn,
     isDeviceAlreadyCheckedIn,

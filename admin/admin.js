@@ -777,6 +777,43 @@
     return datesInMonth(month).filter((date) => getPiketIdsForDate(jadwal, date).length > 0);
   }
 
+  function formatDateLongEnglish(dateStr) {
+    const d = dateFromYYYYMMDD(dateStr);
+    if (!d) return dateStr;
+    const months = [
+      "January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December",
+    ];
+    return `${pad2(d.getDate())} ${months[d.getMonth()]} ${d.getFullYear()}`;
+  }
+
+  async function buildPiketMonthMatrix(month) {
+    const [jadwalObj, anggota] = await Promise.all([DB.getJadwal(), DB.getAnggota()]);
+    const anggotaById = new Map((anggota || []).map((a) => [Number(a.id), a]));
+    const allDates = datesInMonth(month);
+    const scheduledDates = scheduledPiketDatesInMonth(jadwalObj, month);
+    const logsByDate = await Promise.all(
+      scheduledDates.map(async (d) => {
+        const log = await DB.getLog(d);
+        return [d, (log || []).filter((e) => String(e?.tipe || "").toLowerCase() === "piket")];
+      }),
+    );
+    const logMap = new Map(logsByDate);
+
+    const days = PIKET_DAYS.map((day) => {
+      const ids = Array.isArray(jadwalObj?.[day.value]) ? jadwalObj[day.value].map((id) => Number(id)).filter((id) => Number.isFinite(id)) : [];
+      const dates = allDates.filter((date) => piketJadwalKey(date) === day.value);
+      return {
+        ...day,
+        ids,
+        names: ids.map((id) => anggotaById.get(id)?.nama || `ID ${id}`),
+        dates,
+      };
+    }).filter((day) => day.ids.length > 0);
+
+    return { days, logMap, monthCounts: logTypeCounts(logsByDate.flatMap(([, log]) => log || [])) };
+  }
+
   async function renderWeekCalendar() {
     const jadwal = await DB.getJadwal();
     const anggota = await DB.getAnggota();
@@ -903,6 +940,53 @@
     updateDashLiveCounts();
   }
 
+  function dashboardStatusSelect(r) {
+    const current = r.entry ? String(r.entry.tipe || "bebas") : "reset";
+    const resetLabel = r.scheduled ? "Belum Absen" : "Tidak Dijadwal";
+    return `
+      <select class="dash-status-select" data-dash-status="${r.anggota.id}" aria-label="Ubah status ${escapeHtml(r.anggota.nama)}">
+        <option value="reset" ${current === "reset" ? "selected" : ""}>${resetLabel}</option>
+        <option value="piket" ${current === "piket" ? "selected" : ""}>Hadir Piket</option>
+        <option value="bebas" ${current === "bebas" ? "selected" : ""}>Hadir Bebas</option>
+        <option value="acara" ${current === "acara" ? "selected" : ""}>Hadir Acara</option>
+      </select>
+    `;
+  }
+
+  async function setDashboardManualStatus(idAnggota, tipe) {
+    const today = formatDateYYYYMMDD(new Date());
+    const anggota = (await DB.getAnggota()).find((a) => Number(a.id) === Number(idAnggota));
+    if (!anggota) { showToast("Anggota tidak ditemukan.", "error"); return; }
+
+    const deleted = await DB.deleteLogForMember(today, idAnggota);
+    if (!deleted) { showToast("Gagal menghapus status lama.", "error"); return; }
+
+    if (tipe !== "reset") {
+      const now = new Date();
+      const entry = {
+        id_anggota: Number(anggota.id),
+        nama: anggota.nama,
+        nim: anggota.nim || "-",
+        divisi: anggota.divisi || "-",
+        tipe,
+        waktu: formatTimeHHMMSS(now),
+        timestamp: Date.now(),
+        status: "hadir",
+        terlambat: tipe === "piket" ? null : false,
+        lat_absen: null,
+        lng_absen: null,
+        jarak_meter: null,
+        manual_admin: true,
+      };
+      const saved = await DB.insertLog(today, entry);
+      if (!saved) { showToast("Gagal menyimpan status manual.", "error"); return; }
+    }
+
+    await renderDashboard();
+    await renderRekapHarian();
+    showToast("Status dashboard diperbarui.");
+  }
+
   async function renderDashboard() {
     const today = formatDateYYYYMMDD(new Date());
     $("dash-date").textContent = formatDateIndo(new Date());
@@ -931,12 +1015,21 @@
           <td>${r.anggota.nama}</td>
           <td class="mono">${r.anggota.nim}</td>
           <td>${r.anggota.divisi}</td>
-          <td><span class="badge ${r.badge}">${r.statusText}</span></td>
+          <td>${dashboardStatusSelect(r)}</td>
           <td class="mono">${e?.waktu || "-"}</td>
           <td class="mono">${Number.isFinite(e?.jarak_meter) ? `${e.jarak_meter} m` : "-"}</td>
         </tr>
       `;
     }).join("");
+
+    tbody.querySelectorAll("[data-dash-status]").forEach((select) => {
+      select.addEventListener("change", async () => {
+        const id = Number(select.getAttribute("data-dash-status"));
+        const value = select.value;
+        select.disabled = true;
+        await setDashboardManualStatus(id, value);
+      });
+    });
 
     $("dash-empty").style.display = filtered.length ? "none" : "block";
   }
@@ -1017,20 +1110,59 @@
     return personKeyFromEntry(e) === person.key;
   }
 
+  async function getRekapHarianRows(date) {
+    const [log, jadwal, anggota] = await Promise.all([
+      DB.getLog(date),
+      DB.getJadwal(),
+      DB.getAnggota(),
+    ]);
+
+    const rows = (log || []).map((e) => ({ ...e, rekap_status: "Hadir", rekap_absent: false }));
+    const piketIds = getPiketIdsForDate(jadwal, date).map((id) => Number(id)).filter((id) => Number.isFinite(id));
+    const hadirPiketIds = new Set(
+      (log || [])
+        .filter((e) => String(e?.tipe || "").toLowerCase() === "piket")
+        .map((e) => Number(e?.id_anggota))
+        .filter((id) => Number.isFinite(id)),
+    );
+
+    piketIds.forEach((id) => {
+      if (hadirPiketIds.has(id)) return;
+      const a = (anggota || []).find((x) => Number(x.id) === id);
+      rows.push({
+        id_anggota: id,
+        nama: a?.nama || `ID ${id}`,
+        nim: a?.nim || "-",
+        divisi: a?.divisi || "-",
+        tipe: "piket",
+        waktu: "-",
+        jarak_meter: null,
+        terlambat: null,
+        rekap_status: "Tidak Hadir",
+        rekap_absent: true,
+      });
+    });
+
+    return { rows, log, absentCount: rows.filter((e) => e.rekap_absent).length };
+  }
+
   async function renderRekapHarian() {
     const date = $("r-date").value;
-    const log = await DB.getLog(date);
+    const { rows, log, absentCount } = await getRekapHarianRows(date);
     setRekapSummary("rekap-harian-summary", `Tanggal ${date || "-"}`, logTypeCounts(log));
+    const summary = document.getElementById("rekap-harian-summary");
+    if (summary && absentCount > 0) summary.textContent += ` | Tidak hadir piket ${absentCount}`;
     const tbody = $("tbody-r-harian");
-    if (!log.length) {
-      tbody.innerHTML = `<tr><td colspan="6" class="muted">Tidak ada data absensi untuk tanggal ini.</td></tr>`;
+    if (!rows.length) {
+      tbody.innerHTML = `<tr><td colspan="7" class="muted">Tidak ada data absensi atau jadwal piket untuk tanggal ini.</td></tr>`;
       return;
     }
-    tbody.innerHTML = log.map((e, idx) => `
+    tbody.innerHTML = rows.map((e, idx) => `
       <tr>
         <td class="mono">${idx + 1}</td>
         <td>${e.nama}</td>
         <td class="mono">${e.tipe}</td>
+        <td class="mono">${e.rekap_status || "Hadir"}</td>
         <td class="mono">${e.waktu}</td>
         <td class="mono">${Number.isFinite(e.jarak_meter) ? `${e.jarak_meter} m` : "-"}</td>
         <td class="mono">${e.terlambat === null || e.terlambat === undefined ? "-" : (e.terlambat ? "YA" : "TIDAK")}</td>
@@ -1040,13 +1172,14 @@
 
   async function exportRekapHarianCSV() {
     const date = $("r-date").value;
-    const log = await DB.getLog(date);
-    const rows = [["nama", "nim", "divisi", "tipe", "waktu", "jarak_meter", "terlambat"]];
-    log.forEach((e) => rows.push([
+    const { rows: rekapRows } = await getRekapHarianRows(date);
+    const rows = [["nama", "nim", "divisi", "tipe", "status", "waktu", "jarak_meter", "terlambat"]];
+    rekapRows.forEach((e) => rows.push([
       e.nama,
       e.nim,
       e.divisi,
       e.tipe,
+      e.rekap_status || "Hadir",
       e.waktu,
       e.jarak_meter ?? "-",
       (e.terlambat === null || e.terlambat === undefined) ? "-" : (e.terlambat ? "YA" : "TIDAK"),
@@ -1208,64 +1341,37 @@
     }
 
     if (mode === "piket") {
-      $("thead-r-month").innerHTML = `
-        <tr>
-          <th>Tanggal</th>
-          <th>Nama</th>
-          <th>Divisi</th>
-          <th>Status</th>
-          <th>Waktu</th>
-        </tr>
-      `;
+      $("thead-r-month").innerHTML = "";
+      const { days, logMap, monthCounts } = await buildPiketMonthMatrix(month);
+      setRekapSummary("rekap-bulanan-summary", `Bulan ${month}`, monthCounts);
 
-      const [jadwalObj, anggota] = await Promise.all([DB.getJadwal(), DB.getAnggota()]);
-      const anggotaById = new Map((anggota || []).map((a) => [Number(a.id), a]));
-      const tanggalTerjadwal = scheduledPiketDatesInMonth(jadwalObj, month);
-      setRekapSummary("rekap-bulanan-summary", `Bulan ${month}`, { total: 0, piket: 0, bebas: 0, acara: 0 });
-
-      if (!tanggalTerjadwal.length) {
-        $("tbody-r-month").innerHTML = `<tr><td colspan="5" class="muted">Tidak ada jadwal piket untuk bulan ini.</td></tr>`;
+      if (!days.length) {
+        $("tbody-r-month").innerHTML = `<tr><td class="muted">Tidak ada jadwal piket untuk bulan ini.</td></tr>`;
         return;
       }
 
-      const logsByDate = await Promise.all(
-        tanggalTerjadwal.map(async (d) => {
-          const log = await DB.getLog(d);
-          return [d, (log || []).filter((e) => String(e?.tipe || "").toLowerCase() === "piket")];
-        }),
-      );
-      const logMap = new Map(logsByDate);
-      const monthCounts = logTypeCounts(logsByDate.flatMap(([, log]) => log || []));
-      setRekapSummary("rekap-bulanan-summary", `Bulan ${month}`, monthCounts);
-
+      const maxCols = Math.max(...days.map((day) => day.names.length)) + 1;
       const rows = [];
-      tanggalTerjadwal.forEach((tanggal) => {
-        const ids = getPiketIdsForDate(jadwalObj, tanggal);
-        const log = logMap.get(tanggal) || [];
-        const logById = new Map(
-          log
-            .filter((e) => e && e.id_anggota != null)
-            .map((e) => [Number(e.id_anggota), e]),
-        );
-
-        ids.forEach((rawId) => {
-          const id = Number(rawId);
-          const a = anggotaById.get(id);
-          const entry = logById.get(id);
-          const hadir = Boolean(entry);
+      days.forEach((day) => {
+        rows.push(`<tr><th colspan="${maxCols}">HARI : ${day.label.toUpperCase()}</th></tr>`);
+        rows.push(`<tr><th>TANGGAL</th>${day.names.map((name) => `<th>${escapeHtml(name)}</th>`).join("")}</tr>`);
+        day.dates.forEach((tanggal) => {
+          const hadirIds = new Set(
+            (logMap.get(tanggal) || [])
+              .map((e) => Number(e?.id_anggota))
+              .filter((id) => Number.isFinite(id)),
+          );
           rows.push(`
             <tr>
-              <td class="mono">${tanggal}</td>
-              <td>${a?.nama || `ID ${id}`}</td>
-              <td>${a?.divisi || "-"}</td>
-              <td class="mono">${hadir ? "H" : "-"}</td>
-              <td class="mono">${hadir ? (entry.waktu || "-") : "-"}</td>
+              <td class="mono">${formatDateLongEnglish(tanggal)}</td>
+              ${day.ids.map((id) => `<td class="mono">${hadirIds.has(id) ? "H" : "-"}</td>`).join("")}
             </tr>
           `);
         });
+        rows.push(`<tr><td colspan="${maxCols}">&nbsp;</td></tr>`);
       });
 
-      $("tbody-r-month").innerHTML = rows.join("") || `<tr><td colspan="5" class="muted">Tidak ada data.</td></tr>`;
+      $("tbody-r-month").innerHTML = rows.join("");
       return;
     }
 
@@ -1364,39 +1470,30 @@
     }
 
     if (mode === "piket") {
-      const [jadwalObj, anggota] = await Promise.all([DB.getJadwal(), DB.getAnggota()]);
-      const anggotaById = new Map((anggota || []).map((a) => [Number(a.id), a]));
-      const tanggalTerjadwal = scheduledPiketDatesInMonth(jadwalObj, month);
-      const rows = [["tanggal", "nama", "divisi", "status", "waktu"]];
+      const { days, logMap } = await buildPiketMonthMatrix(month);
+      const rows = [
+        ["", "", "ABSEN PIKET"],
+        ["", "", "PENGURUS HMTE FT UNP"],
+        ["", "", `BULAN ${month}`],
+        [],
+      ];
 
-      const logsByDate = await Promise.all(
-        tanggalTerjadwal.map(async (d) => {
-          const log = await DB.getLog(d);
-          return [d, (log || []).filter((e) => String(e?.tipe || "").toLowerCase() === "piket")];
-        }),
-      );
-      const logMap = new Map(logsByDate);
-
-      tanggalTerjadwal.forEach((tanggal) => {
-        const ids = getPiketIdsForDate(jadwalObj, tanggal);
-        const log = logMap.get(tanggal) || [];
-        const logById = new Map(
-          log
-            .filter((e) => e && e.id_anggota != null)
-            .map((e) => [Number(e.id_anggota), e]),
-        );
-        ids.forEach((rawId) => {
-          const id = Number(rawId);
-          const a = anggotaById.get(id);
-          const entry = logById.get(id);
-          rows.push([
-            tanggal,
-            a?.nama || `ID ${id}`,
-            a?.divisi || "-",
-            entry ? "H" : "-",
-            entry ? (entry.waktu || "-") : "-",
-          ]);
+      days.forEach((day) => {
+        rows.push([`HARI : ${day.label.toUpperCase()}`]);
+        rows.push([]);
+        rows.push(["TANGGAL", "", "NAMA"]);
+        rows.push(["", "", ...day.names]);
+        day.dates.forEach((tanggal) => {
+          const hadirIds = new Set(
+            (logMap.get(tanggal) || [])
+              .map((e) => Number(e?.id_anggota))
+              .filter((id) => Number.isFinite(id)),
+          );
+          rows.push([formatDateLongEnglish(tanggal), "", ...day.ids.map((id) => (hadirIds.has(id) ? "H" : "-"))]);
         });
+        rows.push([]);
+        rows.push([]);
+        rows.push([]);
       });
 
       downloadText(`rekap_bulanan_piket_${month}.csv`, toCSV(rows), "text/csv");
